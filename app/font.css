@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+
+/* Body */
+.body-regular {
+  font-weight: 400;
+  font-size: 16px;
+}
+
+.body-bold {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.body-light {
+  font-weight: 300;
+  font-size: 16px;
+}
+
+/* Header1 */
+.header1-bold {
+  font-weight: 700;
+  font-size: 49px;
+}
+
+.header1-regular {
+  font-weight: 400;
+  font-size: 49px;
+}
+
+/* Header2 */
+.header2-bold {
+  font-weight: 700;
+  font-size: 39px;
+}
+
+.header2-regular {
+  font-weight: 400;
+  font-size: 39px;
+}
+
+/* Header3 */
+.header3-bold {
+  font-weight: 700;
+  font-size: 31px;
+}
+
+.header3-regular {
+  font-weight: 400;
+  font-size: 31px;
+}
+
+.header3-light {
+  font-weight: 300;
+  font-size: 31px;
+}
+
+/* Header4 */
+.header4-bold {
+  font-weight: 700;
+  font-size: 25px;
+}
+
+.header4-regular {
+  font-weight: 400;
+  font-size: 25px;
+}
+
+.header4-light {
+  font-weight: 300;
+  font-size: 25px;
+}
+/* HeaderLine */
+
+.headerline-bold {
+  font-weight: 600;
+  font-size: 20px;
+}
+
+.headerline-regular {
+  font-weight: 400;
+  font-size: 20px;
+}
+
+.headerline-light {
+  font-weight: 300;
+  font-size: 20px;
+}
+
+/* Subtitle */
+.subtitle-bold {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.subtitle-regular {
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.subtitle-light {
+  font-weight: 300;
+  font-size: 13px;
+}
+
+/* Caption */
+.capion-bold {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.capion-regular {
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.capion-light {
+  font-weight: 300;
+  font-size: 11px;
+}
+
+/* Footnote */
+
+.footnote-bold {
+  font-weight: 500;
+  font-size: 10px;
+}
+
+.footnote-regular {
+  font-weight: 400;
+  font-size: 10px;
+}
+
+.footnote-light {
+  font-weight: 300;
+  font-size: 10px;
+}
+
+
