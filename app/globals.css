@@ -13,6 +13,14 @@
   --color-border-darker: #224C9F;
 
   --color-primary-label: #3B4B6D;
+
+  --color-error-default: #EF5A84;
+  --color-success-default: #84EF5A;
+  --color-warning-default: #EFC55A;
+  --color-warning-darker: #8B7131;
+
+  --font-size-body: 16px;
+  --font-weight-body: 400;
 }
 
 
@@ -30,7 +38,7 @@
   border-radius: 12px;
 }
 .rounded-full {
-  border-radius: 16px;
+  border-radius: 999px;
 }
 
 /* @media (prefers-color-scheme: dark) {
