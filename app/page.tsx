@@ -34,7 +34,9 @@ export default function Home() {
             <ProductCard key={p.id} {...p}/>
           ))}
         </div>
-        <ToTopBtn/>
+        <div className="fixed bottom-0 right-10">
+          <ToTopBtn/>
+        </div>
       </div>
   );
 }
