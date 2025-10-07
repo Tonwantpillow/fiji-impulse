@@ -14,10 +14,13 @@ export default function ProductCard(prod: Product) {
           <p className="body-regular text-primary-darker">{prod.price.toFixed(2) + " Baht"}</p>
         </div>
       </Link>
-      <button className="bg-primary-lighter w-full h-[50px] absolute bottom-0 flex justify-center items-center gap-[5px] hover:bg-primary-default transition cursor-pointer"
+      {/* <button className="bg-primary-lighter w-full h-[50px] absolute bottom-0 flex justify-center items-center gap-[5px] hover:bg-primary-default transition cursor-pointer"
         onClick={()=>{}}>
         <p className="body-regular">เพิ่มลงตะกร้า</p>
         <ShoppingCart className="size-[16px]"/>
+      </button> */}
+      <button className="bg-primary-lighter w-full h-[50px] absolute bottom-0 flex justify-center items-center gap-[5px] hover:bg-primary-default transition cursor-pointer">
+        <p className="body-regular">ดูรายละเอียด</p>
       </button>
     </div>    
   )

@@ -7,7 +7,6 @@ export default function OrderTile(od: Order) {
         <span className="text-primary-subtle header4-bold">หมายเลขคำสั่งซื้อ : </span>
         <span className="text-primary-darker header4-bold">{od.orderId}</span>
       </span>
-      
       <p className="text-primary-subtle body-regular">{od.orderDate}</p>
       <p className="text-primary-subtle body-regular">{od.orderStatus}</p>
     </div>
