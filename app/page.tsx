@@ -8,12 +8,25 @@ import { getAllProducts } from "@/utils/ProducMock";
 import { Product } from "@/utils/Product";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import axios from 'axios';
+import { ProductModel } from "@/utils/ProductModel";
 
 export default function Home() {
   const [prods, setProds] = useState<Product[]>([])
+  const [prodsModel, setProdsModel] = useState<ProductModel[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   useEffect(()=> {
+    axios.get('http://localhost:8081/product-model')
+      .then(res=> {
+        console.log(res.data)
+        if (res.data) {
+          setProdsModel(res.data)
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching products:', err);
+      })
     const products = getAllProducts()
     setProds(products)
     if (products) {
@@ -30,8 +43,8 @@ export default function Home() {
         </div>
         <SectionLine/>
         <div className="grid grid-cols-3 gap-10 p-4">
-          {prods.map((p)=>(
-            <ProductCard key={p.id} {...p}/>
+          {prodsModel.map((p)=>(
+            <ProductCard key={p.modelId} {...p}/>
           ))}
         </div>
         <div className="fixed bottom-0 right-10">

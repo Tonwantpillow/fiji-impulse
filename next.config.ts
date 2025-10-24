@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
-};
+const nextConfig: NextConfig = {                                                                                                                                                                                                               
+  async rewrites() {                                                                                                                                                                                                                
+     return [                                                                                                                                                                                                                        
+       {                                                                                                                                                                                                                             
+         source: '/api/:path*',                                                                                                                                                                                                     
+         destination: 'http://localhost:8081/:path*',                                                                                                                                                                               
+       },                                                                                                                                                                                                                            
+     ]                                                                                                                                                                                                            
+   },                                                                                                                                                                              
+ } 
 
 export default nextConfig;
