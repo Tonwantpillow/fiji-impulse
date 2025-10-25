@@ -3,6 +3,8 @@ import { Kanit } from "next/font/google";
 import "./globals.css";
 import "./font.css";
 import Navbar from "@/interface/components/Navbar";
+import { SessionProvider } from "@/contexts/SessionContext";
+import LoginModal from "@/components/LoginModal";
 
 import Test from "@/interface/components/Test";
 
@@ -28,8 +30,11 @@ export default function RootLayout({
       <body
         className={kanit.className}
       >
-        <Navbar/>
-        {children}
+        <SessionProvider>
+          <Navbar/>
+          {children}
+          <LoginModal />
+        </SessionProvider>
       </body>
     </html>
   );

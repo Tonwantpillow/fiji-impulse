@@ -6,6 +6,7 @@
   import { Minus, Plus, ShoppingCart } from "lucide-react";
   import Image from "next/image";
   import React, { useEffect, useState } from "react";
+  import { useSession } from "@/contexts/SessionContext";
 
   export default function ProductDetails({
     params,
@@ -16,6 +17,7 @@
     const [productModel, setProductModel] = useState<ProductModel | null>(null);
     const [qnty, setQnty] = useState<number>(1);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const { user, isLoading: sessionLoading, setShowLoginModal } = useSession();
 
     useEffect(() => {
       if (id) {
@@ -34,6 +36,17 @@
         setIsLoading(false);
       }
     }, [id]);
+
+    // Show login modal if user is not authenticated on product-details page
+    useEffect(() => {
+      if (!sessionLoading && !user) {
+        // Delay to ensure page renders first
+        const timer = setTimeout(() => {
+          setShowLoginModal(true);
+        }, 200);
+        return () => clearTimeout(timer);
+      }
+    }, [user, sessionLoading, setShowLoginModal]);
     
     const decreaseQnty = () => {
       if (qnty > 1) {
@@ -82,10 +95,19 @@
               <Plus className="size-[24px]"></Plus>
             </button>
           </div>
-          <button className="flex items-center justify-center rounded-md gap-2 py-3 px-3  bg-warning-default hover:bg-warning-darker  transition">
+          <button
+            className="flex items-center justify-center rounded-md gap-2 py-3 px-3  bg-warning-default hover:bg-warning-darker  transition"
+            onClick={() => {
+              if (!user) {
+                setShowLoginModal(true);
+              } else {
+                // TODO: Add item to cart logic here
+                console.log('Adding to cart:', productModel?.modelName, 'Quantity:', qnty);
+              }
+            }}
+          >
             <p className="header4-regular">เพิ่มลงตะกร้า</p>
             <ShoppingCart />
-            
           </button> 
         </div>
         <div className="flex flex-col gap-2 w-full">
