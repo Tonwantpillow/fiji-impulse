@@ -82,18 +82,19 @@ export default function RegisterPage() {
 
       if (response.status === 200 && response.data === "Register Successfully") {
         setSuccess(true);
-        // Store user data and redirect after successful registration
+
+        // Backend doesn't return user data, so we'll create a minimal user object
+        // User will need to login after registration to get full session
         const userData: User = {
-          id: response.data.user?.id || response.data.id,
-          username: response.data.user?.username || response.data.username,
-          email: response.data.user?.email || response.data.email,
+          id: Date.now().toString(), // Temporary ID until proper login
+          username: formData.username,
+          email: formData.email,
         };
 
-        localStorage.setItem("user", JSON.stringify(userData));
-
-        // Redirect to home page after 2 seconds
+        // Don't auto-login since backend doesn't create session on register
+        // Just show success and redirect to login page
         setTimeout(() => {
-          router.push('/');
+          router.push('/login');
         }, 2000);
       } else {
         setError("การสมัครสมาชิกล้มเหลว กรุณาลองใหม่");
@@ -130,7 +131,7 @@ export default function RegisterPage() {
         <div className="w-[485px] h-[400px] bg-primary-lighter rounded-[16px] p-[50px] flex flex-col items-center justify-center">
           <h2 className="header2-bold text-white text-center mb-4">สมัครสมาชิกสำเร็จ!</h2>
           <p className="text-white text-center mb-4">ยินดีต้อนรับ {formData.username}</p>
-          <p className="text-white text-center">กำลังนำท่านไปยังหน้าหลัก...</p>
+          <p className="text-white text-center">กำลังนำท่านไปยังหน้าเข้าสู่ระบบ...</p>
         </div>
       </div>
     );

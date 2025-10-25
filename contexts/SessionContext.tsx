@@ -12,7 +12,8 @@ import axios from "axios";
 interface User {
   id: string;
   username: string;
-  // Add other user fields as needed
+  email?: string;
+  role?: string;
 }
 
 interface SessionContextType {
@@ -53,11 +54,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             withCredentials: true // Important for session cookies
           });
 
-          if (response.data && response.data.valid) {
-            // Session is still valid, update user data if needed
+          if (response.data && response.data.authenticated) {
+            // Session is still valid, update user data from backend
             const updatedUserData: User = {
               id: response.data.user?.id || userData.id,
               username: response.data.user?.username || userData.username,
+              email: response.data.user?.email || userData.email,
+              role: response.data.user?.role || userData.role,
             };
             setUser(updatedUserData);
             localStorage.setItem("user", JSON.stringify(updatedUserData));
@@ -98,17 +101,38 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         withCredentials: true // If you're using cookies
       });
 
-      if (response.data && response.data.success) {
-        // Store user data from response
-        const userData: User = {
-          id: response.data.user?.id || response.data.id,
-          username: response.data.user?.username || response.data.username,
-        };
+      if (response.data && response.data === "Login success") {
+        // After successful login, get user data from /me endpoint
+        try {
+          const userResponse = await axios.get('http://localhost:8081/auth/me', {
+            withCredentials: true
+          });
 
-        setUser(userData);
-        localStorage.setItem("user", JSON.stringify(userData));
-        setShowLoginModal(false);
-        return true;
+          if (userResponse.data && userResponse.data.authenticated) {
+            const userData: User = {
+              id: userResponse.data.user.id.toString(),
+              username: userResponse.data.user.username,
+              email: userResponse.data.user.email,
+              role: userResponse.data.user.role,
+            };
+
+            setUser(userData);
+            localStorage.setItem("user", JSON.stringify(userData));
+            setShowLoginModal(false);
+            return true;
+          }
+        } catch (userError) {
+          console.error("Failed to get user data after login:", userError);
+          // Even if we can't get user data, login was successful
+          const userData: User = {
+            id: Date.now().toString(),
+            username: username,
+          };
+          setUser(userData);
+          localStorage.setItem("user", JSON.stringify(userData));
+          setShowLoginModal(false);
+          return true;
+        }
       } else {
         // Login failed but no error thrown
         return false;
@@ -139,6 +163,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       return false;
     }
+
+    // Default return in case no other path is taken
+    return false;
   };
 
   const logout = async () => {
