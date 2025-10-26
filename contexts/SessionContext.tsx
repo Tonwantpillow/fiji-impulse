@@ -189,12 +189,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Show login modal if user is not authenticated and not on login/register pages
-  // Use setTimeout to ensure page renders before modal appears
+  // Show login modal if user is not authenticated and not on public pages
+  // Allow browsing on home page and product-details without login
   useEffect(() => {
     if (!isLoading && !user && typeof window !== "undefined") {
       const pathname = window.location.pathname;
-      if (pathname !== "/login" && pathname !== "/register") {
+      // Exclude public pages that don't require login
+      const publicPages = ["/", "/login", "/register"];
+      // Also exclude product-details pages (they start with /product-details)
+      const isProductDetailsPage = pathname.startsWith("/product-details");
+
+      if (!publicPages.includes(pathname) && !isProductDetailsPage) {
         // Delay showing modal to allow page to render first
         const timer = setTimeout(() => {
           setShowLoginModal(true);

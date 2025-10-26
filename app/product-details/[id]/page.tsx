@@ -37,16 +37,9 @@
       }
     }, [id]);
 
-    // Show login modal if user is not authenticated on product-details page
-    useEffect(() => {
-      if (!sessionLoading && !user) {
-        // Delay to ensure page renders first
-        const timer = setTimeout(() => {
-          setShowLoginModal(true);
-        }, 200);
-        return () => clearTimeout(timer);
-      }
-    }, [user, sessionLoading, setShowLoginModal]);
+    // Note: Removed automatic login modal for product-details page
+    // Users can now browse product details without login
+    // Login modal will only appear when clicking "Add to Cart"
     
     const decreaseQnty = () => {
       if (qnty > 1) {

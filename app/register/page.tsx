@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import LoginInput from "@/components/LoginInput";
 import axios from "axios";
+import { useSession } from "@/contexts/SessionContext";
 
 interface User {
   id: string;
@@ -14,6 +14,7 @@ interface User {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { setShowLoginModal } = useSession();
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -30,6 +31,13 @@ export default function RegisterPage() {
       ...prev,
       [name]: value
     }));
+  };
+
+  const handleLoginClick = () => {
+    setShowLoginModal(true);
+    setTimeout(() => {
+      router.push('/');
+    }, 100); // Small delay to ensure modal shows before navigating
   };
 
   const validateForm = () => {
@@ -139,7 +147,7 @@ export default function RegisterPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <div className="w-[485px] h-[600px] bg-primary-lighter rounded-[16px] p-[50px] flex flex-col gap-[26px]">
+      <div className="w-[500px] bg-primary-lighter rounded-[16px] px-[20px] py-[50px] flex flex-col gap-[26px]">
         <h2 className="header2-bold text-white text-center">สมัครสมาชิก</h2>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-[22px]">
@@ -194,10 +202,13 @@ export default function RegisterPage() {
 
           <div className="flex flex-col items-center">
             <div className="flex gap-[20px]">
-              <p className="text-white">มีรหัสสมาชิกอยู่แล้ว ?</p>
-              <Link href="/login" className="text-blue-400 underline hover:text-blue-300 transition-colors">
+              <p className="body-regular">มีรหัสสมาชิกอยู่แล้ว ?</p>
+              <button
+                onClick={handleLoginClick}
+                className="text-white underline hover:text-gray-300 transition-colors bg-transparent border-none p-0 m-0 cursor-pointer"
+              >
                 เข้าสู่ระบบ
-              </Link>
+              </button>
             </div>
           </div>
         </form>

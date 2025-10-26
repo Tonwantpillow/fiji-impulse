@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useSession } from "@/contexts/SessionContext";
 import LoginInput from "./LoginInput";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function LoginModal() {
   const { login, setShowLoginModal, showLoginModal } = useSession();
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +29,13 @@ export default function LoginModal() {
     if (!isLoading) {
       setShowLoginModal(false);
     }
+  };
+
+  const handleRegisterClick = () => {
+    setShowLoginModal(false);
+    setTimeout(() => {
+      router.push('/register');
+    }, 100); // Small delay to ensure modal closes first
   };
 
   // Don't render anything if modal shouldn't be shown
@@ -72,7 +80,7 @@ export default function LoginModal() {
 
           <button
             type="submit"
-            className="text-white bg-[#3B4B6D] rounded-[16px] w-full h-[46px] text-center disabled:opacity-50"
+            className="text-white bg-[#3B4B6D] rounded-[16px] w-full h-[46px] text-center disabled:opacity-50 cursor-pointer hover:bg-primary-default transition-all"
             disabled={isLoading}
           >
             {isLoading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
@@ -81,9 +89,12 @@ export default function LoginModal() {
           <div className="flex flex-col items-center">
             <div className="flex gap-[20px]">
               <p>ไม่มีรหัสสมาชิก ?</p>
-              <Link href="/register" className="text-white underline">
+              <button
+                onClick={handleRegisterClick}
+                className="text-white underline cursor-pointer hover:text-gray-300 transition-all bg-transparent border-none p-0 m-0"
+              >
                 สมัครเลย
-              </Link>
+              </button>
             </div>
           </div>
         </form>
