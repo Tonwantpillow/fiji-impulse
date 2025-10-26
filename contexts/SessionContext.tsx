@@ -44,7 +44,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         const userData = JSON.parse(storedUser);
-
         // Validate session with backend
         try {
           const response = await axios.get('http://localhost:8081/auth/me', {
@@ -55,6 +54,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           });
 
           if (response.data && response.data.authenticated) {
+            console.log("Session validation - ", response.data.user);
             // Session is still valid, update user data from backend
             const updatedUserData: User = {
               id: response.data.user?.id || userData.id,
@@ -62,6 +62,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               email: response.data.user?.email || userData.email,
               role: response.data.user?.role || userData.role,
             };
+            console.log("Session validation - Setting user data:", updatedUserData);
             setUser(updatedUserData);
             localStorage.setItem("user", JSON.stringify(updatedUserData));
           } else {
@@ -102,13 +103,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.data && response.data === "Login success") {
-        // After successful login, get user data from /me endpoint
         try {
           const userResponse = await axios.get('http://localhost:8081/auth/me', {
             withCredentials: true
           });
 
           if (userResponse.data && userResponse.data.authenticated) {
+            console.log("Login - User data from /me:", userResponse.data.user);
             const userData: User = {
               id: userResponse.data.user.id.toString(),
               username: userResponse.data.user.username,
@@ -116,6 +117,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               role: userResponse.data.user.role,
             };
 
+            console.log("Login - Setting user data:", userData);
             setUser(userData);
             localStorage.setItem("user", JSON.stringify(userData));
             setShowLoginModal(false);
