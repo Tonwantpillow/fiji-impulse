@@ -255,12 +255,6 @@ export default function OrderList() {
           textcolor="#498830"
           boxcolor="#84EF5A"
         />
-        <button className="p-[10px] rounded-[5px] bg-[#EFC55A] text-white w-[130px]">
-          สถานะก่อนหน้า
-        </button>
-        <button className="p-[10px] rounded-[5px] bg-[#498830] text-white w-[130px]">
-          สถานะถัดไป
-        </button>
       </div>
       <div className="w-full h-full flex flex-col">
         {ordersLoading ? (
@@ -281,7 +275,7 @@ export default function OrderList() {
                 <th className="px-4 py-2 text-center cursor-pointer">
                   เลขออร์เดอร์
                 </th>
-                <th className="px-4 py-2 text-center cursor-pointer">
+                <th className="px-4 py-2 text-center cursor-pointer rounded-r-xl">
                   สถานะ
                 </th>
               </tr>
