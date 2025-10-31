@@ -11,22 +11,68 @@ import { useEffect, useState } from "react";
 import axios from 'axios';
 import { ProductModel } from "@/utils/ProductModel";
 
+interface ProductModelWithImage extends ProductModel {
+  modelImageData?: string; // Base64 encoded image data
+}
+
 export default function Home() {
   const [prods, setProds] = useState<Product[]>([])
-  const [prodsModel, setProdsModel] = useState<ProductModel[]>([])
+  const [prodsModel, setProdsModel] = useState<ProductModelWithImage[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   useEffect(()=> {
-    axios.get('http://localhost:8081/product-model')
-      .then(res=> {
-        console.log(res.data)
-        if (res.data) {
-          setProdsModel(res.data)
-        }
-      })
-      .catch(err => {
+    const fetchProductsWithImages = async () => {
+      try {
+        // First fetch product models
+        const modelsResponse = await axios.get('http://localhost:8081/product-model');
+        const productModels: ProductModel[] = modelsResponse.data || [];
+
+        // For each product model, fetch its image
+        const productsWithImages: ProductModelWithImage[] = await Promise.all(
+          productModels.map(async (model) => {
+            let modelImageData: string | undefined;
+
+            try {
+              // Fetch product model image using the same endpoint as order details
+              const imageResponse = await axios.get(`http://localhost:8081/product-model/image/${model.modelId}`, {
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                responseType: 'arraybuffer' // Important for binary image data
+              });
+
+              // Convert the array buffer to base64
+              const imageData = imageResponse.data;
+              const base64String = btoa(
+                new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
+              );
+
+              // Get content type from response headers
+              const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
+
+              // Create base64 data URL
+              modelImageData = `data:${contentType};base64,${base64String}`;
+
+            } catch (imageError) {
+              console.warn(`Warning: Could not fetch image for modelId ${model.modelId}:`, imageError);
+              // Continue without image - this is not a critical error
+            }
+
+            return {
+              ...model,
+              modelImageData: modelImageData
+            } as ProductModelWithImage;
+          })
+        );
+
+        setProdsModel(productsWithImages);
+      } catch (err) {
         console.error('Error fetching products:', err);
-      })
+      }
+    };
+
+    fetchProductsWithImages();
+
     const products = getAllProducts()
     setProds(products)
     if (products) {

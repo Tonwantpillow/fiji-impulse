@@ -12,7 +12,6 @@ export default function AdminNavbar() {
 
   const adminPages: Record<string, string> = {
     "/order-list": "รายการออร์เดอร์",
-    "/warehouse": "คลัง",
   };
 
   // Only show admin navbar if user is admin

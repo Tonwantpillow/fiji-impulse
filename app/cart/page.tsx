@@ -185,14 +185,14 @@ export default function CartPage() {
 
             {!hasAddress ? (
               <button
-                className="w-full mt-6 bg-primary-default hover:bg-primary-darker text-white py-4 rounded-lg transition-colors font-medium text-lg"
+                className="w-full mt-6 bg-primary-default hover:bg-primary-darker text-white py-4 rounded-lg transition-all duration-300 ease-in-out transform hover:scale-105 font-medium text-lg"
                 onClick={() => router.push('/address-form')}
               >
                 ดำเนินการสั่งซื้อ
               </button>
             ) : (
               <button
-                className="w-full mt-6 bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg transition-colors font-medium text-lg"
+                className="w-full mt-6 bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg transition-all duration-300 ease-in-out transform hover:scale-105 font-medium text-lg"
                 onClick={() => setShowPaymentSection(true)}
               >
                 ยืนยันการสั่งซื้อ
@@ -209,7 +209,7 @@ export default function CartPage() {
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-white text-xl font-bold">ที่อยู่จัดส่ง</h3>
               <button
-                className="text-white hover:text-blue-200 underline text-sm"
+                className="text-white hover:text-blue-200 underline text-sm transition-all duration-300 ease-in-out transform hover:scale-105"
                 onClick={() => router.push('/address-form')}
               >
                 แก้ไขที่อยู่
@@ -262,7 +262,7 @@ export default function CartPage() {
                 <label className="block text-white mb-2">อัปโหลดสลิปการโอนเงิน</label>
                 <div className="flex justify-center">
                   <label className="cursor-pointer">
-                    <div className="w-full max-w-md h-32 border-2 border-dashed border-white rounded-lg flex items-center justify-center hover:bg-white hover:bg-opacity-10 transition-colors">
+                    <div className="w-full max-w-md h-32 border-2 border-dashed border-white rounded-lg flex items-center justify-center hover:bg-white hover:bg-opacity-10 transition-all duration-300 ease-in-out transform hover:scale-105">
                       {uploadedImage ? (
                         <div className="relative">
                           <img src={uploadedImage} alt="Uploaded slip" className="max-w-full max-h-28 object-contain rounded" />
@@ -272,7 +272,7 @@ export default function CartPage() {
                               e.stopPropagation();
                               setUploadedImage(null);
                             }}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
+                            className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs transition-all duration-300 ease-in-out transform hover:scale-110"
                           >
                             ×
                           </button>
@@ -306,9 +306,9 @@ export default function CartPage() {
               {/* Action Buttons */}
               <div className="flex gap-4">
                 <button
-                  className={`flex-1 py-3 rounded-lg transition-colors font-medium ${
+                  className={`flex-1 py-3 rounded-lg transition-all duration-300 ease-in-out transform font-medium ${
                     uploadedImage
-                      ? "bg-green-500 hover:bg-green-600 text-white"
+                      ? "bg-green-500 hover:bg-green-600 text-white hover:scale-105"
                       : "bg-gray-400 text-gray-200 cursor-not-allowed"
                   }`}
                   onClick={async () => {
@@ -380,7 +380,7 @@ export default function CartPage() {
                 </button>
 
                 <button
-                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg transition-colors font-medium"
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg transition-all duration-300 ease-in-out transform hover:scale-105 font-medium"
                   onClick={() => {
                     setShowPaymentSection(false);
                     setUploadedImage(null);

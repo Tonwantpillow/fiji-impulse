@@ -1,4 +1,5 @@
 import { Order } from "@/utils/Order";
+import { getStatusBadgeClasses } from "@/utils/OrderStatusColors";
 
 export default function OrderTile(od: Order) {
   return (
@@ -8,7 +9,9 @@ export default function OrderTile(od: Order) {
         <span className="text-primary-darker header4-bold">{od.orderId}</span>
       </span>
       <p className="text-primary-subtle body-regular">{od.orderDate}</p>
-      <p className="text-primary-subtle body-regular">{od.orderStatus}</p>
+      <span className={`inline-block px-3 py-1 rounded-full text-sm ${getStatusBadgeClasses(od.orderStatus)}`}>
+        {od.orderStatus}
+      </span>
     </div>
   )
 }

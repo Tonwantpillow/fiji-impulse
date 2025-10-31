@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useSession } from "@/contexts/SessionContext";
 import { ChevronLeft, ChevronRight, SearchIcon, ChevronDown } from "lucide-react";
 import axios from "axios";
+import { getStatusBadgeClasses } from "@/utils/OrderStatusColors";
 
 interface Order {
   orderId: number;
@@ -380,15 +381,7 @@ export default function OrderList() {
                       className="px-4 py-3 text-center cursor-pointer"
                       onClick={() => handleShowOrderDetailsModal(order)}
                     >
-                      <span className={`px-3 py-1 rounded-full text-sm ${
-                        order.orderStatus === "สำเร็จแล้ว"
-                          ? "bg-green-500 text-white"
-                          : order.orderStatus === "กำลังจัดส่ง"
-                          ? "bg-blue-500 text-white"
-                          : order.orderStatus === "กำลังเตรียมสินค้า"
-                          ? "bg-yellow-500 text-white"
-                          : "bg-gray-500 text-white"
-                      }`}>
+                      <span className={`px-3 py-1 rounded-full text-sm ${getStatusBadgeClasses(order.orderStatus)}`}>
                         {order.orderStatus}
                       </span>
                     </td>
@@ -521,15 +514,7 @@ export default function OrderList() {
 
                   <div className="flex justify-between items-center">
                     <span className="">สถานะ:</span>
-                    <span className={`px-3 py-1 rounded-full text-sm ${
-                      selectedOrder.orderStatus === "สำเร็จแล้ว"
-                        ? "bg-green-500 text-white"
-                        : selectedOrder.orderStatus === "กำลังจัดส่ง"
-                        ? "bg-blue-500 text-white"
-                        : selectedOrder.orderStatus === "กำลังเตรียมสินค้า"
-                        ? "bg-yellow-500 text-white"
-                        : "bg-gray-500 text-white"
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-sm ${getStatusBadgeClasses(selectedOrder.orderStatus)}`}>
                       {selectedOrder.orderStatus}
                     </span>
                   </div>

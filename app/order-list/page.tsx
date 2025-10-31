@@ -6,6 +6,7 @@ import { useSession } from "@/contexts/SessionContext";
 import FilterHeader from "@/interface/components/FilterHeader";
 import { ChevronLeft, ChevronRight, SearchIcon, ChevronDown } from "lucide-react";
 import axios from "axios";
+import { getStatusBadgeClasses } from "@/utils/OrderStatusColors";
 
 interface Order {
   orderId: number;
@@ -23,11 +24,39 @@ interface Order {
   orderDate: string;
 }
 
-interface OrderItem {
+interface OrderDetail {
+  orderDetailId: number;
+  orderId: number;
+  modelId: number;
+  orderQuantity: number;
+  totalPrice: number;
+}
+
+interface ProductModel {
+  modelId: number;
+  modelName: string;
+  modelImage?: string;
+  modelImagePath?: string;
+  price: number;
+  description?: string;
+}
+
+interface OrderItem extends OrderDetail {
   model_name: string;
   model_image: string;
+  model_image_data?: string; // Base64 encoded image data
   total_count: number;
   price: number;
+}
+
+interface PaymentInfo {
+  paymentId?: number;
+  orderId: number;
+  totalAmount: number;
+  paymentDate?: string;
+  paymentSlip?: string;
+  paymentStatus: 'pending' | 'approved' | 'rejected';
+  receiptData?: string; // Base64 encoded receipt image
 }
 
 interface CheckedOrder {
@@ -49,6 +78,8 @@ export default function OrderList() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [checkedOrders, setCheckedOrders] = useState<CheckedOrder[]>([]);
+  const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   // Handle checkbox selection
   const handleCheckboxChange = (orderId: number, isChecked: boolean, orderStatus: string) => {
@@ -148,28 +179,235 @@ export default function OrderList() {
   const fetchOrderItems = async (orderId: number) => {
     setItemsLoading(true);
     try {
-      const response = await axios.get(`http://localhost:8081/product-items/items/${orderId}`, {
+      // First, fetch order details
+      const orderDetailsResponse = await axios.get(`http://localhost:8081/order-details/order/${orderId}`, {
         headers: {
           'Content-Type': 'application/json',
         },
         withCredentials: true
       });
-      console.log("Raw API response:", response);
-      console.log("Response data:", response.data);
-      console.log("Response data type:", typeof response.data);
+      console.log("Order details API response:", orderDetailsResponse);
 
-      if (Array.isArray(response.data)) {
-        console.log("Response is array, first item:", response.data[0]);
-        console.log("Keys in first item:", response.data[0] ? Object.keys(response.data[0]) : "No items");
+      const orderDetails: OrderDetail[] = orderDetailsResponse.data || [];
+      console.log("Order details:", orderDetails);
+
+      if (!Array.isArray(orderDetails) || orderDetails.length === 0) {
+        setOrderItems([]);
+        return;
       }
 
-      setOrderItems(response.data || []);
+      // For each order detail, fetch the product model information and image
+      const orderItems: OrderItem[] = await Promise.all(
+        orderDetails.map(async (detail) => {
+          try {
+            // Fetch product model information
+            const modelResponse = await axios.get(`http://localhost:8081/product-model/${detail.modelId}`, {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              withCredentials: true
+            });
+
+            const productModel: ProductModel = modelResponse.data;
+
+            // Fetch product model image using the new endpoint
+            let modelImageData: string | undefined;
+            try {
+              const imageResponse = await axios.get(`http://localhost:8081/product-model/image/${detail.modelId}`, {
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                withCredentials: true,
+                responseType: 'arraybuffer' // Important for binary image data
+              });
+
+              // Convert the array buffer to base64
+              const imageData = imageResponse.data;
+              const base64String = btoa(
+                new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
+              );
+
+              // Get content type from response headers
+              const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
+
+              // Create base64 data URL
+              modelImageData = `data:${contentType};base64,${base64String}`;
+
+            } catch (imageError) {
+              console.warn(`Warning: Could not fetch image for modelId ${detail.modelId}:`, imageError);
+              // Continue without image - this is not a critical error
+            }
+
+            // Create OrderItem with all necessary information
+            return {
+              ...detail,
+              model_name: productModel?.modelName || 'Unknown Product',
+              model_image: productModel?.modelImage || productModel?.modelImagePath || '',
+              model_image_data: modelImageData,
+              total_count: detail.orderQuantity,
+              price: detail.totalPrice / detail.orderQuantity // Calculate unit price
+            } as OrderItem;
+          } catch (modelError) {
+            console.error(`Error fetching model info for modelId ${detail.modelId}:`, modelError);
+            // Return item with default values if model fetch fails
+            return {
+              ...detail,
+              model_name: 'Unknown Product',
+              model_image: '',
+              total_count: detail.orderQuantity,
+              price: detail.totalPrice / detail.orderQuantity
+            } as OrderItem;
+          }
+        })
+      );
+
+      console.log("Final order items:", orderItems);
+      setOrderItems(orderItems);
     } catch (err: any) {
       console.error("Error fetching order items:", err);
       console.error("Error response:", err.response?.data);
       setOrderItems([]);
     } finally {
       setItemsLoading(false);
+    }
+  };
+
+  const fetchPaymentInfo = async (orderId: number) => {
+    setPaymentLoading(true);
+    try {
+      // First, try to get the receipt image
+      const receiptResponse = await axios.get(`http://localhost:8081/payments/receipt/${orderId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        withCredentials: true,
+        responseType: 'arraybuffer' // Important for binary data
+      });
+
+      console.log("Receipt API response:", receiptResponse);
+
+      // Convert the array buffer to base64
+      const receiptData = receiptResponse.data;
+      const base64String = btoa(
+        new Uint8Array(receiptData).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+
+      // Get content type from response headers or determine from data
+      const contentType = receiptResponse.headers['content-type'] || 'image/jpeg';
+
+      // Create base64 data URL
+      const receiptDataUrl = `data:${contentType};base64,${base64String}`;
+
+      // Since the backend doesn't provide payment JSON info, create mock payment info
+      // Based on the order status and items
+      const selectedOrder = orders.find(o => o.orderId === orderId);
+      const orderTotal = orderItems.reduce((total, item) => total + item.totalPrice, 0);
+
+      // Determine payment status based on order status
+      let paymentStatus: 'pending' | 'approved' | 'rejected' = 'pending';
+      if (selectedOrder?.orderStatus === 'รอตรวจสอบหลักฐาน') {
+        paymentStatus = 'pending';
+      } else if (selectedOrder?.orderStatus === 'หลักฐานการชำระเงินถูกปฏิเสธ') {
+        paymentStatus = 'rejected';
+      } else if (selectedOrder?.orderStatus === 'ยืนยันการชำระแล้ว') {
+        paymentStatus = 'approved';
+      }
+
+      const paymentInfo: PaymentInfo = {
+        orderId: orderId,
+        totalAmount: orderTotal,
+        paymentStatus: paymentStatus,
+        receiptData: receiptDataUrl,
+        paymentDate: selectedOrder?.orderDate // Use order date as payment date fallback
+      };
+
+      console.log("Payment info created:", paymentInfo);
+      setPaymentInfo(paymentInfo);
+
+    } catch (err: any) {
+      console.error("Error fetching payment info:", err);
+      console.error("Error response:", err.response?.data);
+
+      // If no receipt found, check if order status indicates payment should exist
+      const selectedOrder = orders.find(o => o.orderId === orderId);
+
+      if (selectedOrder && ['รอตรวจสอบหลักฐาน', 'ยืนยันการชำระแล้ว', 'หลักฐานการชำระเงินถูกปฏิเสธ'].includes(selectedOrder.orderStatus)) {
+        // Order has payment status but no receipt - create payment info without receipt
+        const orderTotal = orderItems.reduce((total, item) => total + item.totalPrice, 0);
+
+        let paymentStatus: 'pending' | 'approved' | 'rejected' = 'pending';
+        if (selectedOrder.orderStatus === 'รอตรวจสอบหลักฐาน') {
+          paymentStatus = 'pending';
+        } else if (selectedOrder.orderStatus === 'หลักฐานการชำระเงินถูกปฏิเสธ') {
+          paymentStatus = 'rejected';
+        } else if (selectedOrder.orderStatus === 'ยืนยันการชำระแล้ว') {
+          paymentStatus = 'approved';
+        }
+
+        const paymentInfo: PaymentInfo = {
+          orderId: orderId,
+          totalAmount: orderTotal,
+          paymentStatus: paymentStatus,
+          paymentDate: selectedOrder.orderDate
+        };
+
+        setPaymentInfo(paymentInfo);
+      } else {
+        // No payment info available
+        setPaymentInfo(null);
+      }
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handlePaymentStatusUpdate = async (orderId: number, newStatus: 'approved' | 'rejected') => {
+    try {
+      // Determine the correct endpoint based on status
+      const endpoint = newStatus === 'approved'
+        ? `http://localhost:8081/orders/${orderId}/approve`
+        : `http://localhost:8081/orders/${orderId}/reject`;
+
+      const response = await axios.post(endpoint, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        withCredentials: true
+      });
+
+      console.log(`Order ${orderId} payment ${newStatus}:`, response.data);
+
+      // Update local payment state
+      if (paymentInfo) {
+        setPaymentInfo({ ...paymentInfo, paymentStatus: newStatus });
+      }
+
+      // Update order status based on payment decision
+      let newOrderStatus: string;
+
+      if (newStatus === 'approved') {
+        newOrderStatus = 'ยืนยันการชำระแล้ว';
+      } else {
+        newOrderStatus = 'หลักฐานการชำระเงินถูกปฏิเสธ';
+      }
+
+      // Update order in the list
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.orderId === orderId
+            ? { ...order, orderStatus: newOrderStatus }
+            : order
+        )
+      );
+
+      // Update selected order too
+      setSelectedOrder(prev => prev ? { ...prev, orderStatus: newOrderStatus } : null);
+
+      alert(`การชำระเงินถูก${newStatus === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'}เรียบร้อยแล้ว`);
+
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      alert('เกิดข้อผิดพลาดในการอัปเดตสถานะการชำระเงิน กรุณาลองใหม่');
     }
   };
 
@@ -285,14 +523,18 @@ export default function OrderList() {
   const handleShowAddressModal = async (order: Order) => {
     setSelectedOrder(order);
     setShowAddressModal(true);
-    // Fetch order items when modal opens
-    await fetchOrderItems(order.orderId);
+    // Fetch order items and payment info when modal opens
+    await Promise.all([
+      fetchOrderItems(order.orderId),
+      fetchPaymentInfo(order.orderId)
+    ]);
   };
 
   const closeAddressModal = () => {
     setShowAddressModal(false);
     setSelectedOrder(null);
     setOrderItems([]);
+    setPaymentInfo(null);
   };
 
   
@@ -332,7 +574,7 @@ export default function OrderList() {
           <p className="text-white mb-6">คุณต้องเข้าสู่ระบบเพื่อดูรายการคำสั่งซื้อ</p>
           <button
             onClick={() => setShowLoginModal(true)}
-            className="bg-primary-default text-white px-6 py-3 rounded-lg hover:bg-primary-darker transition-colors"
+            className="bg-primary-default text-white px-6 py-3 rounded-lg hover:bg-primary-darker transition-all duration-300 ease-in-out transform hover:scale-105"
           >
             เข้าสู่ระบบ
           </button>
@@ -384,7 +626,7 @@ export default function OrderList() {
         <div className="relative">
           <button
             onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-            className="bg-primary-lighter text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary-default transition-colors min-w-[200px] justify-between"
+            className="bg-primary-lighter text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary-default transition-all duration-300 ease-in-out transform hover:scale-105 min-w-[200px] justify-between"
           >
             <span>
               {statusOptions.find(option => option.value === selectedStatusFilter)?.label || 'ออร์เดอร์ทั้งหมด'}
@@ -405,7 +647,7 @@ export default function OrderList() {
                     setSelectedStatusFilter(option.value);
                     setShowStatusDropdown(false);
                   }}
-                  className={`w-full px-4 py-3 text-left flex items-center justify-between hover:bg-primary-default transition-colors ${
+                  className={`w-full px-4 py-3 text-left flex items-center justify-between hover:bg-primary-default transition-all duration-300 ease-in-out transform hover:scale-105 ${
                     selectedStatusFilter === option.value ? 'bg-primary-default' : ''
                   } ${option.value === 'all' ? 'rounded-t-lg' : ''} ${
                     option.value === statusOptions[statusOptions.length - 1].value ? 'rounded-b-lg' : ''
@@ -421,8 +663,8 @@ export default function OrderList() {
           )}
         </div>
       </div>
-      <button className="w-[300px] h-[30px] bg-amber-400">ก่อนหน้า</button>
-      <button className="w-[300px] h-[30px] bg-green-300" onClick={handleNextStatus}>ถัดไป</button>
+      <button className="w-[300px] h-[30px] bg-amber-400 hover:bg-amber-500 text-white transition-all duration-300 ease-in-out transform hover:scale-105">ก่อนหน้า</button>
+      <button className="w-[300px] h-[30px] bg-green-300 hover:bg-green-400 text-white transition-all duration-300 ease-in-out transform hover:scale-105" onClick={handleNextStatus}>ถัดไป</button>
       </div>
 
   
@@ -506,15 +748,7 @@ export default function OrderList() {
                       className="px-4 py-3 text-center cursor-pointer"
                       onClick={() => handleShowAddressModal(order)}
                     >
-                      <span className={`px-3 py-1 rounded-full text-sm ${
-                        order.orderStatus === "สำเร็จแล้ว"
-                          ? "bg-green-500 text-white"
-                          : order.orderStatus === "กำลังจัดส่ง"
-                          ? "bg-blue-500 text-white"
-                          : order.orderStatus === "กำลังเตรียมสินค้า"
-                          ? "bg-yellow-500 text-white"
-                          : "bg-gray-500 text-white"
-                      }`}>
+                      <span className={`px-3 py-1 rounded-full text-sm ${getStatusBadgeClasses(order.orderStatus)}`}>
                         {order.orderStatus}
                       </span>
                     </td>
@@ -528,11 +762,11 @@ export default function OrderList() {
       </div>
 
       <div className="w-full border-t-gray-300 border-t-[1px] flex items-center justify-center gap-[10px] p-[20px]">
-        <button className="w-[30px] h-[30px] rounded-[12px] border-[1px] border-gray-300 flex items-center justify-center">
+        <button className="w-[30px] h-[30px] rounded-[12px] border-[1px] border-gray-300 flex items-center justify-center hover:bg-gray-300 hover:border-gray-400 transition-all duration-300 ease-in-out transform hover:scale-110">
           <ChevronLeft/>
         </button>
-        <button className="size-[30px] rounded-[12px] border-[1px] border-gray-300 flex items-center justify-center">1</button>
-        <button className="w-[30px] h-[30px] rounded-[12px] border-[1px] border-gray-300 flex items-center justify-center">
+        <button className="size-[30px] rounded-[12px] border-[1px] border-gray-300 flex items-center justify-center hover:bg-gray-300 hover:border-gray-400 transition-all duration-300 ease-in-out transform hover:scale-110">1</button>
+        <button className="w-[30px] h-[30px] rounded-[12px] border-[1px] border-gray-300 flex items-center justify-center hover:bg-gray-300 hover:border-gray-400 transition-all duration-300 ease-in-out transform hover:scale-110">
           <ChevronRight/>
         </button>
       </div>
@@ -540,23 +774,23 @@ export default function OrderList() {
       {/* Address Modal */}
       {showAddressModal && selectedOrder && (
         <div className="fixed inset-0 bg-transparent bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-primary-lighter rounded-[16px] w-[900px] max-w-[95%] max-h-[75vh] p-[25px] relative">
+          <div className="bg-primary-lighter rounded-[16px] w-[1200px] max-w-[98%] max-h-[85vh] p-[25px] relative overflow-y-auto">
             <h2 className="header2-bold text-white text-center mb-4">ข้อมูลคำสั่งซื้อ</h2>
 
             {/* Close button inside content */}
             <div className="flex justify-end mb-4">
               <button
                 onClick={closeAddressModal}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-lg transition-colors"
+                className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-lg transition-all duration-300 ease-in-out transform hover:scale-105"
               >
                 ปิด
               </button>
             </div>
 
-            <div className="flex gap-8 flex-1 overflow-hidden">
-              {/* Left Half - Order Items */}
+            <div className="flex gap-6 flex-1 overflow-hidden">
+              {/* Left Section - Order Items */}
               <div className="flex-1 flex flex-col">
-                <div className="bg-white bg-opacity-10 rounded-lg p-4 flex flex-col h-[400px]">
+                <div className="bg-white bg-opacity-10 rounded-lg p-4 flex flex-col h-[300px]">
                   <div className="text-body-regular mb-3 border-b-1">รายการสินค้า</div>
                   <div className="space-y-3 flex-1 overflow-y-auto pr-2">
                     {itemsLoading ? (
@@ -576,18 +810,31 @@ export default function OrderList() {
                         console.log("Price:", item.price);
 
                         return (
-                        <div key={index} className="flex gap-4 items-center bg-white bg-opacity-10 rounded-lg p-4 border border-gray-600">
+                        <div key={index} className="flex gap-4 items-center bg-white bg-opacity-10 rounded-lg p-3 border border-gray-600">
                           <div className="flex-shrink-0 text-center">
-                            {item.model_image && item.model_image !== 'undefined' && item.model_image.trim() !== '' ? (
+                            {item.model_image_data ? (
+                              // Use base64 image data if available (from new endpoint)
+                              <Image
+                                src={item.model_image_data}
+                                alt={item.model_name || 'Product image'}
+                                width={80}
+                                height={80}
+                                className="rounded-lg object-cover mb-2"
+                                onError={(e) => {
+                                  console.error("Base64 image failed to load:", item.model_image_data);
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : item.model_image && item.model_image !== 'undefined' && item.model_image.trim() !== '' ? (
+                              // Fallback to legacy image path if available
                               <Image
                                 src={item.model_image.startsWith('http') ? item.model_image : `/images/${item.model_image}`}
                                 alt={item.model_name || 'Product image'}
-                                width={100}
-                                height={100}
+                                width={80}
+                                height={80}
                                 className="rounded-lg object-cover mb-2"
                                 onError={(e) => {
                                   console.error("Image failed to load:", item.model_image);
-                                  // Hide the image on error
                                   e.currentTarget.style.display = 'none';
                                 }}
                                 onLoad={() => {
@@ -595,20 +842,20 @@ export default function OrderList() {
                                 }}
                               />
                             ) : (
-                              <div className="w-[100px] h-[100px] bg-gray-600 rounded-lg flex items-center justify-center mb-2">
+                              <div className="w-[80px] h-[80px] bg-gray-600 rounded-lg flex items-center justify-center mb-2">
                                 <span className="text-gray-400 text-xs">No Image</span>
                               </div>
                             )}
                             <p className="text-white text-sm font-bold">{item.price ? `${item.price} ฿` : 'N/A'}</p>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-lg mb-3">
+                            <h4 className="font-bold text-base mb-2">
                               {item.model_name || 'Unknown Product'}
                             </h4>
-                            <p className="text-green-400 font-medium text-base mb-2">
+                            <p className="text-green-400 font-medium text-sm mb-1">
                               จำนวน: {item.total_count || 0} ชิ้น
                             </p>
-                            <p className="text-yellow-400 text-sm">
+                            <p className="text-yellow-400 text-xs">
                               ราคารวม: {item.price && item.total_count ? (item.price * item.total_count).toFixed(2) : '0.00'} ฿
                             </p>
                           </div>
@@ -619,10 +866,10 @@ export default function OrderList() {
                   </div>
 
                   {/* Total Price at bottom of items list */}
-                  <div className="border-t border-gray-600 pt-3 mt-4">
+                  <div className="border-t border-gray-600 pt-2 mt-2">
                     <div className="flex justify-between items-center">
-                      <span className="font-medium">ยอดรวมสินค้า:</span>
-                      <span className="text-yellow-400 font-bold text-lg">
+                      <span className="font-medium text-sm">ยอดรวมสินค้า:</span>
+                      <span className="text-yellow-400 font-bold text-base">
                         {orderItems.reduce((total, item) => total + ((item.price || 0) * (item.total_count || 0)), 0).toFixed(2)} ฿
                       </span>
                     </div>
@@ -630,60 +877,54 @@ export default function OrderList() {
                 </div>
               </div>
 
-              {/* Right Half - Order Info and Address */}
+              {/* Middle Section - Order Info */}
               <div className="flex-1 flex flex-col">
-                <div className="bg-white bg-opacity-10 rounded-lg p-4 flex flex-col h-[400px] overflow-y-auto">
-                  <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="">เลขออร์เดอร์:</span>
-                    <span className="font-bold">{selectedOrder.orderId}</span>
-                  </div>
+                <div className="bg-white bg-opacity-10 rounded-lg p-4 flex flex-col h-[300px] overflow-y-auto">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">เลขออร์เดอร์:</span>
+                      <span className="font-bold text-sm">{selectedOrder.orderId}</span>
+                    </div>
 
-                  <div className="flex justify-between items-center">
-                    <span className="">วันที่สั่ง:</span>
-                    <span className="">
-                      {selectedOrder.orderDate ? new Date(selectedOrder.orderDate).toLocaleDateString('th-TH', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric'
-                      }) : '-'}
-                    </span>
-                  </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">วันที่สั่ง:</span>
+                      <span className="text-sm">
+                        {selectedOrder.orderDate ? new Date(selectedOrder.orderDate).toLocaleDateString('th-TH', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric'
+                        }) : '-'}
+                      </span>
+                    </div>
 
-                  <div className="flex justify-between items-center">
-                    <span className="">สถานะ:</span>
-                    <span className={`px-3 py-1 rounded-full text-sm ${
-                      selectedOrder.orderStatus === "สำเร็จแล้ว"
-                        ? "bg-green-500 text-white"
-                        : selectedOrder.orderStatus === "กำลังจัดส่ง"
-                        ? "bg-blue-500 text-white"
-                        : selectedOrder.orderStatus === "กำลังเตรียมสินค้า"
-                        ? "bg-yellow-500 text-white"
-                        : "bg-gray-500 text-white"
-                    }`}>
-                      {selectedOrder.orderStatus}
-                    </span>
-                  </div>
-                  <div className="border-t border-gray-600 pt-4">
-                    <h3 className="font-medium mb-3">ที่อยู่จัดส่ง</h3>
-                    <div className="bg-white bg-opacity-10 rounded-lg p-4">
-                      <div className="space-y-2">
-                        <div className="flex">
-                          <div className="text-primary-default w-20">ชื่อ:</div>
-                          <div className="ml-2 w-full">{selectedOrder.recipientName || '-'}</div>
-                        </div>
-                        <div className="flex">
-                          <div className="text-primary-default w-20">ที่อยู่:</div>
-                          <div className="ml-2 w-full">
-                            {selectedOrder.houseAddress && selectedOrder.streetName && selectedOrder.district &&
-                             selectedOrder.subDistrict && selectedOrder.province && selectedOrder.postalCode
-                              ? `${selectedOrder.houseAddress} ${selectedOrder.streetName} ${selectedOrder.district} ${selectedOrder.subDistrict} ${selectedOrder.province} ${selectedOrder.postalCode}`
-                              : '-'}
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">สถานะ:</span>
+                      <span className={`px-3 py-1 rounded-full text-xs ${getStatusBadgeClasses(selectedOrder.orderStatus)}`}>
+                        {selectedOrder.orderStatus}
+                      </span>
+                    </div>
+
+                    <div className="border-t border-gray-600 pt-3">
+                      <h3 className="font-medium mb-2 text-sm">ที่อยู่จัดส่ง</h3>
+                      <div className="bg-white bg-opacity-10 rounded-lg p-3">
+                        <div className="space-y-2">
+                          <div className="flex">
+                            <div className="text-primary-default w-16 text-xs">ชื่อ:</div>
+                            <div className="ml-2 w-full text-xs">{selectedOrder.recipientName || '-'}</div>
                           </div>
-                        </div>
-                        <div className="flex">
-                          <div className="text-primary-default w-20">โทรศัพท์:</div>
-                          <div className="ml-2 w-full">{selectedOrder.phoneNumber || '-'}</div>
+                          <div className="flex">
+                            <div className="text-primary-default w-16 text-xs">ที่อยู่:</div>
+                            <div className="ml-2 w-full text-xs">
+                              {selectedOrder.houseAddress && selectedOrder.streetName && selectedOrder.district &&
+                               selectedOrder.subDistrict && selectedOrder.province && selectedOrder.postalCode
+                                ? `${selectedOrder.houseAddress} ${selectedOrder.streetName} ${selectedOrder.district} ${selectedOrder.subDistrict} ${selectedOrder.province} ${selectedOrder.postalCode}`
+                                : '-'}
+                            </div>
+                          </div>
+                          <div className="flex">
+                            <div className="text-primary-default w-16 text-xs">โทรศัพท์:</div>
+                            <div className="ml-2 w-full text-xs">{selectedOrder.phoneNumber || '-'}</div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -691,9 +932,81 @@ export default function OrderList() {
                 </div>
               </div>
             </div>
+
+            {/* Payment Transaction Section */}
+            <div className="mt-4 border-t border-gray-600 pt-4">
+              <h3 className="font-bold text-lg text-white mb-4">การตรวจสอบการชำระเงิน</h3>
+
+              {paymentLoading ? (
+                <div className="text-gray-400 text-center py-6">
+                  กำลังตรวจสอบข้อมูลการชำระเงิน...
+                </div>
+              ) : !paymentInfo ? (
+                <div className="text-gray-400 text-center py-6">
+                  ไม่พบข้อมูลการชำระเงิน
+                </div>
+              ) : (
+                <div className="bg-white bg-opacity-10 rounded-lg p-4">
+                  <div className="flex flex-col items-center space-y-4">
+                    {/* Payment Slip */}
+                    <div className="text-center">
+                      <div className="text-sm font-medium mb-3">หลักฐานการชำระเงิน</div>
+                      {paymentInfo.receiptData ? (
+                        <Image
+                          src={paymentInfo.receiptData}
+                          alt="Payment Receipt"
+                          width={250}
+                          height={180}
+                          className="rounded-lg border-2 border-gray-400 object-cover mb-4"
+                          onError={(e) => {
+                            console.error("Payment receipt failed to load:", paymentInfo.receiptData);
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-[250px] h-[180px] bg-gray-600 rounded-lg flex items-center justify-center border-2 border-gray-400 mb-4">
+                          <span className="text-gray-400 text-sm">ไม่มีหลักฐาน</span>
+                        </div>
+                      )}
+
+                      {/* Payment Status Badge */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium">สถานะ:</span>
+                        <span className={`px-4 py-2 rounded-full text-sm font-medium ${
+                          paymentInfo.paymentStatus === 'approved' ? 'bg-green-500 text-white' :
+                          paymentInfo.paymentStatus === 'rejected' ? 'bg-red-500 text-white' :
+                          'bg-yellow-500 text-white'
+                        }`}>
+                          {paymentInfo.paymentStatus === 'approved' ? '✓ อนุมัติแล้ว' :
+                           paymentInfo.paymentStatus === 'rejected' ? '✗ ถูกปฏิเสธ' :
+                           '⏳ รอการตรวจสอบ'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    {paymentInfo.paymentStatus === 'pending' && (
+                      <div className="flex gap-4 justify-center">
+                        <button
+                          className="px-8 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all duration-300 ease-in-out transform hover:scale-105 font-medium"
+                          onClick={() => handlePaymentStatusUpdate(paymentInfo.orderId, 'approved')}
+                        >
+                          ✓ อนุมัติการชำระเงิน
+                        </button>
+                        <button
+                          className="px-8 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all duration-300 ease-in-out transform hover:scale-105 font-medium"
+                          onClick={() => handlePaymentStatusUpdate(paymentInfo.orderId, 'rejected')}
+                        >
+                          ✗ ปฏิเสธการชำระเงิน
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             </div>
           </div>
-        </div>
       )}
     </div>
   );
