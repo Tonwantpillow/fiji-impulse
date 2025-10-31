@@ -53,6 +53,10 @@
       }
     }
 
+    const handleAddToCart = () => {
+      
+    }
+
     if (isLoading) {
       return <div>Loading Products</div>;
     }

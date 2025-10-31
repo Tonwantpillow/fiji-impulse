@@ -62,9 +62,9 @@ export default function WareHouse() {
       </div>
       <div className="flex gap-[10px]">
         <div className="flex flex-col w-full h-screen overflow-scroll">
-          {Array.from({ length: 10 }).map((_, index) => (
-            <AddedProduct key={index} />
-          ))}
+          {/* {Array.from({ length: 10 }).map((_, index) => (
+            // <AddedProduct key={index} />
+          ))} */}
         </div>
         <div className="flex flex-col gap-[10px] p-[27px] w-full items-center">
           <div className="flex gap-[10px]">
@@ -105,15 +105,15 @@ export default function WareHouse() {
               <div className="flex flex-col gap-[10px] border-[1px] rounded-[5px] p-[10px] w-full">
                 <p className="header3-bold text-center">สินค้าที่ต้องใช้</p>
                 <div>
-                  <AddedProduct />
-                  <AddedProduct />
+                  {/* <AddedProduct />
+                  <AddedProduct /> */}
                 </div>
               </div>
               <div className="flex flex-col gap-[10px] border-[1px] rounded-[5px] p-[10px] w-full">
                 <p className="header3-bold text-center">ส่วนประกอบที่ต้องใช้</p>
                 <div>
-                  <AddedProduct />
-                  <AddedProduct />
+                  {/* <AddedProduct />
+                  <AddedProduct /> */}
                 </div>
               </div>
             </div>

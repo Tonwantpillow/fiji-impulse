@@ -2,33 +2,30 @@
 
 import Link from "next/link";
 import AccountBtn from "./AccountBtn";
-import CartBtn from "./CartBtn";
 import LogoBtn from "./LogoBtn";
-import AdminNavbar from "./AdminNavbar";
 import { usePathname } from "next/navigation";
 import { useSession } from "@/contexts/SessionContext";
 
-export default function Navbar() {
+export default function AdminNavbar() {
   const pathname = usePathname();
-  const { user, isLoading } = useSession();
+  const { user } = useSession();
 
-  // Show admin navbar if user is admin
-  if (!isLoading && user?.role === 'ADMIN') {
-    return <AdminNavbar />;
-  }
-
-  const pages: Record<string, string> = {
-    "/": "รายการสินค้า",
-    "/order-status": "ติดตามคำสั่งซื้อ",
-    "/about": "เกี่ยวกับเรา",
+  const adminPages: Record<string, string> = {
+    "/order-list": "รายการออร์เดอร์",
+    "/warehouse": "คลัง",
   };
+
+  // Only show admin navbar if user is admin
+  if (user?.role !== 'ADMIN') {
+    return null;
+  }
 
   return (
     <nav className="w-full bg-primary-default p-4 flex justify-between">
       <LogoBtn />
 
       <div className="flex gap-8 items-center">
-        {Object.entries(pages).map(([path, label]) => (
+        {Object.entries(adminPages).map(([path, label]) => (
           <Link
             key={path}
             href={path}
@@ -44,7 +41,7 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-x-[10px]">
-        <CartBtn />
+        {/* Admin navbar doesn't have cart - only account button */}
         <AccountBtn />
       </div>
     </nav>

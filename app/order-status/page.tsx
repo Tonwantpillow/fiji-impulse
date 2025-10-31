@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useSession } from "@/contexts/SessionContext";
 import FilterHeader from "@/interface/components/FilterHeader";
-import { ChevronLeft, ChevronRight, SearchIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, SearchIcon, ChevronDown } from "lucide-react";
 import axios from "axios";
 
 interface Order {
@@ -41,6 +41,8 @@ export default function OrderList() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
   // Show login modal if user is not authenticated
   useEffect(() => {
@@ -146,12 +148,31 @@ export default function OrderList() {
     }
   };
 
-  // Filter orders based on search term
-  const filteredOrders = (orders || []).filter(order =>
-    order && order.orderId && (
-      order.orderId.toString().includes(searchTerm.toLowerCase())
-    )
-  );
+  // Filter orders based on search term and status
+  const filteredOrders = (orders || []).filter(order => {
+    if (!order || !order.orderId) return false;
+
+    // Search filter
+    const matchesSearch = order.orderId.toString().includes(searchTerm.toLowerCase());
+
+    // Status filter
+    let matchesStatus = true;
+    if (selectedStatusFilter !== 'all') {
+      const statusMap = {
+        'waiting_payment': 'รอชำระเงิน',
+        'waiting_verification': 'รอตรวจสอบหลักฐาน',
+        'payment_rejected': 'หลักฐานการชำระเงินถูกปฏิเสธ',
+        'payment_confirmed': 'ยืนยันการชำระแล้ว',
+        'production_complete': 'สินค้าผลิตแล้ว',
+        'waiting_shipment': 'รอจัดส่ง',
+        'shipping_progress': 'กำลังจัดส่ง',
+        'shipped': 'จัดส่งแล้ว',
+      };
+      matchesStatus = order.orderStatus === statusMap[selectedStatusFilter as keyof typeof statusMap];
+    }
+
+    return matchesSearch && matchesStatus;
+  });
 
   // Modal functions - define before usage
   const handleShowAddressModal = async (order: Order) => {
@@ -173,7 +194,26 @@ export default function OrderList() {
     preparing: (orders || []).filter(o => o && o.orderStatus === "กำลังเตรียมสินค้า").length,
     shipping: (orders || []).filter(o => o && o.orderStatus === "กำลังจัดส่ง").length,
     completed: (orders || []).filter(o => o && o.orderStatus === "สำเร็จแล้ว").length,
+    waiting_payment: (orders || []).filter(o => o && o.orderStatus === "รอชำระเงิน").length,
+    waiting_verification: (orders || []).filter(o => o && o.orderStatus === "รอตรวจสอบหลักฐาน").length,
+    payment_confirmed: (orders || []).filter(o => o && o.orderStatus === "ยืนยันการชำระแล้ว").length,
+    production_complete: (orders || []).filter(o => o && o.orderStatus === "สินค้าผลิตแล้ว").length,
+    waiting_shipment: (orders || []).filter(o => o && o.orderStatus === "รอจัดส่ง").length,
+    shipping_progress: (orders || []).filter(o => o && o.orderStatus === "กำลังจัดส่ง").length,
+    shipped: (orders || []).filter(o => o && o.orderStatus === "จัดส่งแล้ว").length,
   };
+
+  // Status options for dropdown
+  const statusOptions = [
+    { value: 'all', label: 'ออร์เดอร์ทั้งหมด', count: statusCounts.all },
+    { value: 'waiting_payment', label: 'รอชำระเงิน', count: statusCounts.waiting_payment },
+    { value: 'waiting_verification', label: 'รอตรวจสอบหลักฐาน', count: statusCounts.waiting_verification },
+    { value: 'payment_confirmed', label: 'ยืนยันการชำระแล้ว', count: statusCounts.payment_confirmed },
+    { value: 'production_complete', label: 'สินค้าผลิตแล้ว', count: statusCounts.production_complete },
+    { value: 'waiting_shipment', label: 'รอจัดส่ง', count: statusCounts.waiting_shipment },
+    { value: 'shipping_progress', label: 'กำลังจัดส่ง', count: statusCounts.shipping_progress },
+    { value: 'shipped', label: 'จัดส่งแล้ว', count: statusCounts.shipped },
+  ];
 
   // Show login required message if not authenticated and modal is closed
   if (!user && !isLoading && showLoginRequired && !showLoginModal) {
@@ -230,31 +270,48 @@ export default function OrderList() {
         </div>
       </div>
 
+      {/* Status Filter Dropdown */}
       <div className="w-full flex gap-2">
-        <FilterHeader
-          title="ออร์เดอร์ทั้งหมด"
-          qnty={statusCounts.all}
-          textcolor="primary-default"
-          boxcolor="primary-lighter"
-        />
-        <FilterHeader
-          title="กำลังเตรียมสินค้า"
-          qnty={statusCounts.preparing}
-          textcolor="#8B7131"
-          boxcolor="#FADCA3"
-        />
-        <FilterHeader
-          title="กำลังจัดส่ง"
-          qnty={statusCounts.shipping}
-          textcolor="primary-darker"
-          boxcolor="primary-default"
-        />
-        <FilterHeader
-          title="สำเร็จแล้ว"
-          qnty={statusCounts.completed}
-          textcolor="#498830"
-          boxcolor="#84EF5A"
-        />
+        <div className="relative">
+          <button
+            onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+            className="bg-primary-lighter text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary-default transition-colors min-w-[200px] justify-between"
+          >
+            <span>
+              {statusOptions.find(option => option.value === selectedStatusFilter)?.label || 'ออร์เดอร์ทั้งหมด'}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="bg-primary-default px-2 py-1 rounded text-sm">
+                {statusOptions.find(option => option.value === selectedStatusFilter)?.count || 0}
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${showStatusDropdown ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {showStatusDropdown && (
+            <div className="absolute top-full left-0 mt-2 w-full bg-primary-lighter rounded-lg shadow-lg border border-gray-600 z-50">
+              {statusOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    setSelectedStatusFilter(option.value);
+                    setShowStatusDropdown(false);
+                  }}
+                  className={`w-full px-4 py-3 text-left flex items-center justify-between hover:bg-primary-default transition-colors ${
+                    selectedStatusFilter === option.value ? 'bg-primary-default' : ''
+                  } ${option.value === 'all' ? 'rounded-t-lg' : ''} ${
+                    option.value === statusOptions[statusOptions.length - 1].value ? 'rounded-b-lg' : ''
+                  }`}
+                >
+                  <span className="text-white">{option.label}</span>
+                  <span className="bg-gray-600 min-w-[30px] text-center px-2 py-1 rounded text-sm text-white">
+                    {option.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <div className="w-full h-full flex flex-col">
         {ordersLoading ? (
