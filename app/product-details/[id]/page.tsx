@@ -17,6 +17,7 @@
     const [productModel, setProductModel] = useState<ProductModel | null>(null);
     const [qnty, setQnty] = useState<number>(1);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isAddingToCart, setIsAddingToCart] = useState<boolean>(false);
     const { user, isLoading: sessionLoading, setShowLoginModal } = useSession();
 
     useEffect(() => {
@@ -53,9 +54,82 @@
       }
     }
 
-    const handleAddToCart = () => {
-      
+    const handleAddToCart = async () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
     }
+
+    if (!productModel) {
+      alert('ไม่พบข้อมูลสินค้า');
+      return;
+    }
+
+    setIsAddingToCart(true);
+
+    try {
+      // First, check if this product model already exists in user's orders
+      const response = await axios.get(`http://localhost:8081/order-details/order/not-paid/${user.id}`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        withCredentials: true
+      });
+
+      let hasExistingProduct = false;
+
+      if (response.data) {
+        // Parse the response to check if this product model exists
+        Object.entries(response.data).forEach(([key, modelName]) => {
+          const match = key.match(/orderDetailId=(\d+).*orderId=(\d+).*modelId=(\d+).*orderQuantity=(\d+).*totalPrice=([\d.]+)/);
+          if (match) {
+            const modelId = parseInt(match[3]);
+            if (modelId === productModel.modelId) {
+              hasExistingProduct = true;
+            }
+          }
+        });
+      }
+
+      // Choose the appropriate endpoint based on whether product exists
+      const endpoint = hasExistingProduct
+        ? 'http://localhost:8081/order-details/adjust-to-waiting-order'
+        : 'http://localhost:8081/order-details/add-to-waiting-order';
+
+      const result = await axios.post(
+        endpoint,
+        null,
+        {
+          params: {
+            userId: user.id,
+            modelId: productModel.modelId,
+            quantity: qnty
+          },
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          withCredentials: true
+        }
+      );
+
+      if (result.status === 200) {
+        alert(result.data || 'เพิ่มสินค้าลงตะกร้าสำเร็จแล้ว');
+      } else {
+        alert('เกิดข้อผิดพลาดในการเพิ่มสินค้า');
+      }
+
+    } catch (error: any) {
+      console.error('Error adding to cart:', error);
+
+      if (error.response?.data) {
+        alert(error.response.data);
+      } else {
+        alert('เกิดข้อผิดพลาดในการเพิ่มสินค้า กรุณาลองใหม่');
+      }
+    } finally {
+      setIsAddingToCart(false);
+    }
+  }
 
     if (isLoading) {
       return <div>Loading Products</div>;
@@ -93,18 +167,12 @@
             </button>
           </div>
           <button
-            className="flex items-center justify-center rounded-md gap-2 py-3 px-3  bg-warning-default hover:bg-warning-darker  transition"
-            onClick={() => {
-              if (!user) {
-                setShowLoginModal(true);
-              } else {
-                // TODO: Add item to cart logic here
-                console.log('Adding to cart:', productModel?.modelName, 'Quantity:', qnty);
-              }
-            }}
+            className="flex items-center justify-center rounded-md gap-2 py-3 px-3  bg-warning-default hover:bg-warning-darker  transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+            onClick={handleAddToCart}
+            disabled={isAddingToCart}
           >
-            <p className="header4-regular">เพิ่มลงตะกร้า</p>
-            <ShoppingCart />
+            <p className="header4-regular">{isAddingToCart ? 'กำลังเพิ่ม...' : 'เพิ่มลงตะกร้า'}</p>
+            {!isAddingToCart && <ShoppingCart />}
           </button> 
         </div>
         <div className="flex flex-col gap-2 w-full">

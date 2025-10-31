@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useSession } from "@/contexts/SessionContext";
-import FilterHeader from "@/interface/components/FilterHeader";
 import { ChevronLeft, ChevronRight, SearchIcon, ChevronDown } from "lucide-react";
 import axios from "axios";
 
@@ -23,13 +22,6 @@ interface Order {
   orderDate: string;
 }
 
-interface OrderItem {
-  model_name: string;
-  model_image: string;
-  total_count: number;
-  price: number;
-}
-
 export default function OrderList() {
   const { user, isLoading, showLoginModal, setShowLoginModal } = useSession();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -38,9 +30,9 @@ export default function OrderList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showLoginRequired, setShowLoginRequired] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [itemsLoading, setItemsLoading] = useState(false);
+  const [showOrderDetailsModal, setShowOrderDetailsModal] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<any[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
@@ -120,31 +112,49 @@ export default function OrderList() {
     }
   };
 
-  const fetchOrderItems = async (orderId: number) => {
-    setItemsLoading(true);
+  const fetchOrderDetails = async (orderId: number) => {
+    setDetailsLoading(true);
     try {
-      const response = await axios.get(`http://localhost:8081/product-items/items/${orderId}`, {
+      // For now, use the same endpoint as cart since we don't have a specific order-by-id endpoint
+      const response = await axios.get(`http://localhost:8081/order-details/order/not-paid/${user?.id}`, {
         headers: {
           'Content-Type': 'application/json',
         },
         withCredentials: true
       });
-      console.log("Raw API response:", response);
-      console.log("Response data:", response.data);
-      console.log("Response data type:", typeof response.data);
 
-      if (Array.isArray(response.data)) {
-        console.log("Response is array, first item:", response.data[0]);
-        console.log("Keys in first item:", response.data[0] ? Object.keys(response.data[0]) : "No items");
+      if (response.data) {
+        // Parse the response format similar to cart page
+        const orderDetailsArray: any[] = [];
+        Object.entries(response.data).forEach(([key, modelName]) => {
+          const match = key.match(/orderDetailId=(\d+).*orderId=(\d+).*modelId=(\d+).*orderQuantity=(\d+).*totalPrice=([\d.]+)/);
+          if (match) {
+            const orderDetailId = parseInt(match[1]);
+            // Only include details for the specific order we're viewing
+            if (orderDetailId && parseInt(match[2]) === orderId) {
+              const orderDetail = {
+                orderDetailId: orderDetailId,
+                orderId: parseInt(match[2]),
+                modelId: parseInt(match[3]),
+                orderQuantity: parseInt(match[4]),
+                totalPrice: parseFloat(match[5]),
+                model_name: modelName as string,
+                unitPrice: parseFloat(match[5]) / parseInt(match[4]), // Calculate unit price
+                imageUrl: `/images/${(modelName as string).replace(/\s+/g, '').toLowerCase()}.jpg` // Create image URL like cart page
+              };
+              orderDetailsArray.push(orderDetail);
+            }
+          }
+        });
+        setOrderDetails(orderDetailsArray);
+      } else {
+        setOrderDetails([]);
       }
-
-      setOrderItems(response.data || []);
     } catch (err: any) {
-      console.error("Error fetching order items:", err);
-      console.error("Error response:", err.response?.data);
-      setOrderItems([]);
+      console.error("Error fetching order details:", err);
+      setOrderDetails([]);
     } finally {
-      setItemsLoading(false);
+      setDetailsLoading(false);
     }
   };
 
@@ -175,17 +185,19 @@ export default function OrderList() {
   });
 
   // Modal functions - define before usage
-  const handleShowAddressModal = async (order: Order) => {
+  const handleShowOrderDetailsModal = async (order: Order) => {
     setSelectedOrder(order);
-    setShowAddressModal(true);
-    // Fetch order items when modal opens
-    await fetchOrderItems(order.orderId);
+    setShowOrderDetailsModal(true);
+    // Fetch order details when modal opens
+    if (user) {
+      await fetchOrderDetails(order.orderId);
+    }
   };
 
-  const closeAddressModal = () => {
-    setShowAddressModal(false);
+  const closeOrderDetailsModal = () => {
+    setShowOrderDetailsModal(false);
     setSelectedOrder(null);
-    setOrderItems([]);
+    setOrderDetails([]);
   };
 
   // Count orders by status
@@ -313,6 +325,7 @@ export default function OrderList() {
           )}
         </div>
       </div>
+
       <div className="w-full h-full flex flex-col">
         {ordersLoading ? (
           <div className="flex items-center justify-center h-64">
@@ -348,8 +361,8 @@ export default function OrderList() {
                 filteredOrders.map((order) => (
                   <tr key={order.orderId} className="border-b border-gray-600">
                     <td
-                      className="px-4 py-3 text-center  cursor-pointer"
-                      onClick={() => handleShowAddressModal(order)}
+                      className="px-4 py-3 text-center cursor-pointer"
+                      onClick={() => handleShowOrderDetailsModal(order)}
                     >
                       {order.orderDate ? new Date(order.orderDate).toLocaleDateString('th-TH', {
                         day: 'numeric',
@@ -359,13 +372,13 @@ export default function OrderList() {
                     </td>
                     <td
                       className="px-4 py-3 text-center cursor-pointer"
-                      onClick={() => handleShowAddressModal(order)}
+                      onClick={() => handleShowOrderDetailsModal(order)}
                     >
                       {order.orderId || '-'}
                     </td>
                     <td
                       className="px-4 py-3 text-center cursor-pointer"
-                      onClick={() => handleShowAddressModal(order)}
+                      onClick={() => handleShowOrderDetailsModal(order)}
                     >
                       <span className={`px-3 py-1 rounded-full text-sm ${
                         order.orderStatus === "สำเร็จแล้ว"
@@ -397,8 +410,8 @@ export default function OrderList() {
         </button>
       </div>
 
-      {/* Address Modal */}
-      {showAddressModal && selectedOrder && (
+      {/* Order Details Modal */}
+      {showOrderDetailsModal && selectedOrder && (
         <div className="fixed inset-0 bg-transparent bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-primary-lighter rounded-[16px] w-[900px] max-w-[95%] max-h-[75vh] p-[25px] relative">
             <h2 className="header2-bold text-white text-center mb-4">ข้อมูลคำสั่งซื้อ</h2>
@@ -406,7 +419,7 @@ export default function OrderList() {
             {/* Close button inside content */}
             <div className="flex justify-end mb-4">
               <button
-                onClick={closeAddressModal}
+                onClick={closeOrderDetailsModal}
                 className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-lg transition-colors"
               >
                 ปิด
@@ -414,62 +427,58 @@ export default function OrderList() {
             </div>
 
             <div className="flex gap-8 flex-1 overflow-hidden">
-              {/* Left Half - Order Items */}
+              {/* Left Half - Order Details */}
               <div className="flex-1 flex flex-col">
                 <div className="bg-white bg-opacity-10 rounded-lg p-4 flex flex-col h-[400px]">
                   <div className="text-body-regular mb-3 border-b-1">รายการสินค้า</div>
                   <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-                    {itemsLoading ? (
+                    {detailsLoading ? (
                       <div className="text-gray-400 text-center py-8">
                         กำลังดึงข้อมูลรายการสินค้า...
                       </div>
-                    ) : orderItems.length === 0 ? (
+                    ) : orderDetails.length === 0 ? (
                       <div className="text-gray-400 text-center py-8">
                         ไม่พบรายการสินค้า
                       </div>
                     ) : (
-                      orderItems.map((item, index) => {
-                        console.log("Rendering item:", item);
-                        console.log("Image path:", item.model_image);
-                        console.log("Model name:", item.model_name);
-                        console.log("Total count:", item.total_count);
-                        console.log("Price:", item.price);
-
+                      orderDetails.map((detail, index) => {
                         return (
                         <div key={index} className="flex gap-4 items-center bg-white bg-opacity-10 rounded-lg p-4 border border-gray-600">
                           <div className="flex-shrink-0 text-center">
-                            {item.model_image && item.model_image !== 'undefined' && item.model_image.trim() !== '' ? (
-                              <Image
-                                src={item.model_image.startsWith('http') ? item.model_image : `/images/${item.model_image}`}
-                                alt={item.model_name || 'Product image'}
-                                width={100}
-                                height={100}
-                                className="rounded-lg object-cover mb-2"
-                                onError={(e) => {
-                                  console.error("Image failed to load:", item.model_image);
-                                  // Hide the image on error
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                                onLoad={() => {
-                                  console.log("Image loaded successfully:", item.model_image);
-                                }}
-                              />
-                            ) : (
-                              <div className="w-[100px] h-[100px] bg-gray-600 rounded-lg flex items-center justify-center mb-2">
-                                <span className="text-gray-400 text-xs">No Image</span>
-                              </div>
-                            )}
-                            <p className="text-white text-sm font-bold">{item.price ? `${item.price} ฿` : 'N/A'}</p>
+                            <Image
+                              src={detail.imageUrl || ''}
+                              alt={detail.model_name || 'Product image'}
+                              width={100}
+                              height={100}
+                              className="rounded-lg object-cover mb-2"
+                              onError={(e) => {
+                                console.error("Image failed to load:", detail.imageUrl);
+                                // Show fallback on error
+                                const target = e.currentTarget;
+                                target.style.display = 'none';
+                                const fallback = target.nextElementSibling as HTMLElement;
+                                if (fallback) {
+                                  fallback.style.display = 'flex';
+                                }
+                              }}
+                            />
+                            <div
+                              className="w-[100px] h-[100px] bg-gray-600 rounded-lg flex items-center justify-center mb-2"
+                              style={{display: 'none'}}
+                            >
+                              <span className="text-gray-400 text-xs text-center">{detail.model_name || 'Product'}</span>
+                            </div>
+                            <p className="text-white text-sm font-bold">{detail.unitPrice ? `${detail.unitPrice} ฿` : 'N/A'}</p>
                           </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="font-bold text-lg mb-3">
-                              {item.model_name || 'Unknown Product'}
+                              {detail.model_name || 'Unknown Product'}
                             </h4>
                             <p className="text-green-400 font-medium text-base mb-2">
-                              จำนวน: {item.total_count || 0} ชิ้น
+                              จำนวน: {detail.orderQuantity || 0} ชิ้น
                             </p>
                             <p className="text-yellow-400 text-sm">
-                              ราคารวม: {item.price && item.total_count ? (item.price * item.total_count).toFixed(2) : '0.00'} ฿
+                              ราคารวม: {detail.totalPrice ? detail.totalPrice.toFixed(2) : '0.00'} ฿
                             </p>
                           </div>
                         </div>
@@ -483,7 +492,7 @@ export default function OrderList() {
                     <div className="flex justify-between items-center">
                       <span className="font-medium">ยอดรวมสินค้า:</span>
                       <span className="text-yellow-400 font-bold text-lg">
-                        {orderItems.reduce((total, item) => total + ((item.price || 0) * (item.total_count || 0)), 0).toFixed(2)} ฿
+                        {orderDetails.reduce((total, detail) => total + (detail.totalPrice || 0), 0).toFixed(2)} ฿
                       </span>
                     </div>
                   </div>
@@ -551,8 +560,8 @@ export default function OrderList() {
                 </div>
               </div>
             </div>
-            </div>
           </div>
+        </div>
         </div>
       )}
     </div>
