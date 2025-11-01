@@ -260,7 +260,7 @@ export default function AddressFormPage() {
             disabled={isSubmitting || orderDetails.length === 0}
             className="flex-1 bg-primary-default hover:bg-primary-darker disabled:bg-gray-400 text-white py-4 rounded-lg transition-colors font-medium text-lg"
           >
-            {isSubmitting ? 'กำลังดำเนินการ...' : 'ยืนยันการสั่งซื้อ'}
+            {isSubmitting ? 'กำลังดำเนินการ...' : 'บันทึกที่อยู่จัดส่ง'}
           </button>
 
           <button

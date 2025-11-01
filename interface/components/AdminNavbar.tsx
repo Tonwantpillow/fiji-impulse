@@ -11,7 +11,7 @@ export default function AdminNavbar() {
   const { user } = useSession();
 
   const adminPages: Record<string, string> = {
-    "/order-list": "รายการออร์เดอร์",
+    "/order-list": "รายการคำสั่งซื้อ",
   };
 
   // Only show admin navbar if user is admin

@@ -5,11 +5,23 @@ import Checkbox from "./Checkbox";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { Product } from "@/utils/Product";
 import { useState } from "react";
+import axios from "axios";
+import { useSession } from "@/contexts/SessionContext";
 
-export default function AddedProduct(prod: Product) {
+interface CartProduct extends Product {
+  orderQuantity: number;
+  totalPrice: number;
+  orderId: number;
+  orderDetailId: number;
+  modelImageData?: string; // Base64 encoded image data
+}
+
+export default function AddedProduct(prod: CartProduct) {
 
   const [quantity, setQuantity] = useState<number>(prod.orderQuantity);
   const [tmpQuantity, setTmpQuantity] = useState<number>(quantity);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const { user } = useSession();
   
   const increaseQuantity = () => {
     if (tmpQuantity < 99) {
@@ -23,9 +35,82 @@ export default function AddedProduct(prod: Product) {
     }
   }
 
+  const handleConfirmUpdate = async () => {
+    if (!user || tmpQuantity === quantity) return;
+
+    setIsUpdating(true);
+    try {
+      const response = await axios.post(
+        'http://localhost:8081/order-details/adjust-to-waiting-order',
+        null,
+        {
+          params: {
+            userId: user.id,
+            modelId: prod.id,
+            quantity: tmpQuantity
+          },
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          withCredentials: true
+        }
+      );
+
+      console.log('Quantity update response:', response.data);
+
+      // Update local state after successful API call
+      setQuantity(tmpQuantity);
+
+      // Trigger parent component to refresh (optional - using custom event)
+      window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { productId: prod.id, newQuantity: tmpQuantity } }));
+
+      alert('อัปเดตจำนวนสินค้าเรียบร้อย');
+    } catch (error: any) {
+      console.error('Error updating quantity:', error);
+      alert(error.response?.data || 'เกิดข้อผิดพลาดในการอัปเดตจำนวนสินค้า');
+      // Reset tmpQuantity on error
+      setTmpQuantity(quantity);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <div className="w-full h-[200px] flex p-[10px] border-[1px] border-gray-200  rounded-[8px]">
-      <Image src={prod.imageUrl} width={170} height={170} alt={prod.name} className="border-[1px] border-gray-200 rounded-[8px]"/>
+      {prod.modelImageData ? (
+        // Use base64 image data if available (from API)
+        <Image
+          src={prod.modelImageData}
+          alt={prod.name}
+          width={170}
+          height={170}
+          className="border-[1px] border-gray-200 rounded-[8px]"
+          onError={(e) => {
+            console.error("Base64 image failed to load:", prod.modelImageData);
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      ) : prod.imageUrl && prod.imageUrl !== 'undefined' && prod.imageUrl.trim() !== '' ? (
+        // Fallback to legacy image path if available
+        <Image
+          src={prod.imageUrl.startsWith('http') ? prod.imageUrl : `/images/${prod.imageUrl}`}
+          alt={prod.name}
+          width={170}
+          height={170}
+          className="border-[1px] border-gray-200 rounded-[8px]"
+          onError={(e) => {
+            console.error("Image failed to load:", prod.imageUrl);
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      ) : (
+        // Fallback placeholder if no image available
+        <div className="w-[170px] h-[170px] border-[1px] border-gray-200 rounded-[8px] flex items-center justify-center bg-gray-200">
+          <div className="text-center">
+            <span className="text-gray-500 text-sm">ไม่มีรูปภาพ</span>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-[10px] p-[10px] w-full">
         <p className="header4-regular">{prod.name}</p>
         <div className="bg-primary-lighter flex items-center justify-center gap-[30px] h-[50px] w-full rounded-[8px]">
@@ -39,8 +124,12 @@ export default function AddedProduct(prod: Product) {
         </div>
         {
           tmpQuantity !== quantity ? (
-            <button className="p-[10px] flex items-center justify-center rounded-[8px] bg-primary-default">
-              ยืนยันการเปลี่ยนแปลง
+            <button
+              className="p-[10px] flex items-center justify-center rounded-[8px] bg-primary-default transition-all duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleConfirmUpdate}
+              disabled={isUpdating}
+            >
+              {isUpdating ? 'กำลังอัปเดต...' : 'ยืนยันการเปลี่ยนแปลง'}
             </button>
           ): null
         }

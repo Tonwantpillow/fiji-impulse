@@ -80,6 +80,9 @@ export default function OrderList() {
   const [checkedOrders, setCheckedOrders] = useState<CheckedOrder[]>([]);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [showReuploadSection, setShowReuploadSection] = useState(false);
+  const [reuploadedImage, setReuploadedImage] = useState<string | null>(null);
+  const [isReuploading, setIsReuploading] = useState(false);
 
   // Handle checkbox selection
   const handleCheckboxChange = (orderId: number, isChecked: boolean, orderStatus: string) => {
@@ -137,9 +140,6 @@ export default function OrderList() {
 
     try {
       const apiUrl = `http://localhost:8081/orders`;
-      console.log("Making API call to:", apiUrl);
-      console.log("User ID being used:", user.id);
-
       const response = await axios.get(apiUrl, {
         headers: {
           'Content-Type': 'application/json',
@@ -311,6 +311,8 @@ export default function OrderList() {
         paymentStatus = 'rejected';
       } else if (selectedOrder?.orderStatus === 'ยืนยันการชำระแล้ว') {
         paymentStatus = 'approved';
+      } else if (selectedOrder?.orderStatus === 'รอตรวจสอบอีกครั้ง') {
+        paymentStatus = 'pending'; // Treat re-verification as pending
       }
 
       const paymentInfo: PaymentInfo = {
@@ -331,7 +333,7 @@ export default function OrderList() {
       // If no receipt found, check if order status indicates payment should exist
       const selectedOrder = orders.find(o => o.orderId === orderId);
 
-      if (selectedOrder && ['รอตรวจสอบหลักฐาน', 'ยืนยันการชำระแล้ว', 'หลักฐานการชำระเงินถูกปฏิเสธ'].includes(selectedOrder.orderStatus)) {
+      if (selectedOrder && ['รอตรวจสอบหลักฐาน', 'ยืนยันการชำระแล้ว', 'หลักฐานการชำระเงินถูกปฏิเสธ', 'รอตรวจสอบอีกครั้ง'].includes(selectedOrder.orderStatus)) {
         // Order has payment status but no receipt - create payment info without receipt
         const orderTotal = orderItems.reduce((total, item) => total + item.totalPrice, 0);
 
@@ -342,6 +344,8 @@ export default function OrderList() {
           paymentStatus = 'rejected';
         } else if (selectedOrder.orderStatus === 'ยืนยันการชำระแล้ว') {
           paymentStatus = 'approved';
+        } else if (selectedOrder.orderStatus === 'รอตรวจสอบอีกครั้ง') {
+          paymentStatus = 'pending'; // Treat re-verification as pending
         }
 
         const paymentInfo: PaymentInfo = {
@@ -394,7 +398,7 @@ export default function OrderList() {
       // Update order in the list
       setOrders(prevOrders =>
         prevOrders.map(order =>
-          order.orderId === orderId
+          order.orderId === selectedOrder?.orderId
             ? { ...order, orderStatus: newOrderStatus }
             : order
         )
@@ -403,13 +407,43 @@ export default function OrderList() {
       // Update selected order too
       setSelectedOrder(prev => prev ? { ...prev, orderStatus: newOrderStatus } : null);
 
-      alert(`การชำระเงินถูก${newStatus === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'}เรียบร้อยแล้ว`);
-
     } catch (error) {
       console.error('Error updating payment status:', error);
-      alert('เกิดข้อผิดพลาดในการอัปเดตสถานะการชำระเงิน กรุณาลองใหม่');
     }
   };
+
+  // Handle reupload slip for rejected payments
+  const handleReuploadSlip = () => {
+    setShowReuploadSection(true);
+  };
+
+  // Update order status after reupload
+  const handleReuploadStatusUpdate = async (orderId: number) => {
+    try {
+      await axios.patch(
+        `http://localhost:8081/orders/${orderId}/status?newStatus=รอตรวจสอบอีกครั้ง`,
+        {},
+        { withCredentials: true }
+      );
+
+      // Update local state
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.orderId === orderId
+            ? { ...order, orderStatus: 'รอตรวจสอบอีกครั้ง' }
+            : order
+        )
+      );
+
+      // Update selected order too
+      setSelectedOrder(prev => prev ? { ...prev, orderStatus: 'รอตรวจสอบอีกครั้ง' } : null);
+
+    } catch (error) {
+      console.error('Error updating order status after reupload:', error);
+      throw error;
+    }
+  };
+
 
   // Filter orders based on search term and status
   const filteredOrders = (orders || []).filter(order => {
@@ -424,6 +458,7 @@ export default function OrderList() {
       const statusMap = {
         'waiting_payment': 'รอชำระเงิน',
         'waiting_verification': 'รอตรวจสอบหลักฐาน',
+        'waiting_recheck': 'รอตรวจสอบอีกครั้ง',
         'payment_rejected': 'หลักฐานการชำระเงินถูกปฏิเสธ',
         'payment_confirmed': 'ยืนยันการชำระแล้ว',
         'production_complete': 'สินค้าผลิตแล้ว',
@@ -535,6 +570,8 @@ export default function OrderList() {
     setSelectedOrder(null);
     setOrderItems([]);
     setPaymentInfo(null);
+    setShowReuploadSection(false);
+    setReuploadedImage(null);
   };
 
   
@@ -797,7 +834,7 @@ export default function OrderList() {
                       <div className="text-gray-400 text-center py-8">
                         กำลังดึงข้อมูลรายการสินค้า...
                       </div>
-                    ) : orderItems.length === 0 ? (
+                  ) : orderItems.length === 0 ? (
                       <div className="text-gray-400 text-center py-8">
                         ไม่พบรายการสินค้า
                       </div>
@@ -846,7 +883,7 @@ export default function OrderList() {
                                 <span className="text-gray-400 text-xs">No Image</span>
                               </div>
                             )}
-                            <p className="text-white text-sm font-bold">{item.price ? `${item.price} ฿` : 'N/A'}</p>
+                            <p className="text-sm font-bold">{item.price ? `${item.price} ฿` : 'N/A'}</p>
                           </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="font-bold text-base mb-2">
@@ -1000,7 +1037,155 @@ export default function OrderList() {
                           ✗ ปฏิเสธการชำระเงิน
                         </button>
                       </div>
-                    )}
+                    )}  
+                  </div>
+                </div>
+              )}
+
+              {/* Re-upload Section */}
+              {showReuploadSection && (
+                <div className="mt-4 bg-white bg-opacity-10 rounded-lg p-4">
+                  <h3 className="font-bold text-lg text-white mb-4">
+                    อัปโหลดสลิปใหม่
+                  </h3>
+
+                  <div className="space-y-6">
+                    {/* Upload Area */}
+                    <div className="flex justify-center">
+                      <label className="cursor-pointer">
+                        <div className="w-full max-w-md h-32 border-2 border-dashed border-white rounded-lg flex items-center justify-center hover:bg-white hover:bg-opacity-10 transition-all duration-300 ease-in-out transform hover:scale-105">
+                          {reuploadedImage ? (
+                            <div className="relative">
+                              <img
+                                src={reuploadedImage}
+                                alt="Re-uploaded slip"
+                                className="max-w-full max-h-28 object-contain rounded"
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReuploadedImage(null);
+                                }}
+                                className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs transition-all duration-300 ease-in-out transform hover:scale-110"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-center text-white">
+                              <p className="text-lg mb-1">📷</p>
+                              <p className="text-sm">คลิกเพื่อเลือกรูปสลิปใหม่</p>
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setReuploadedImage(reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-4">
+                      <button
+                        className={`flex-1 py-3 rounded-lg transition-all duration-300 ease-in-out transform font-medium ${
+                          reuploadedImage
+                            ? "bg-green-500 hover:bg-green-600 text-white hover:scale-105"
+                            : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                        }`}
+                        onClick={async () => {
+                          if (reuploadedImage) {
+                            setIsReuploading(true);
+                            try {
+                              // Convert base64 to blob for FormData
+                              const response = await fetch(reuploadedImage);
+                              const blob = await response.blob();
+                              const file = new File([blob], 'reuploaded-slip.jpg', { type: 'image/jpeg' });
+
+                              // Get current date in yyyy-MM-dd HH:mm:ss format for backend compatibility
+                              const now = new Date();
+                              const year = now.getFullYear();
+                              const month = String(now.getMonth() + 1).padStart(2, '0');
+                              const day = String(now.getDate()).padStart(2, '0');
+                              const hours = String(now.getHours()).padStart(2, '0');
+                              const minutes = String(now.getMinutes()).padStart(2, '0');
+                              const seconds = String(now.getSeconds()).padStart(2, '0');
+                              const paymentDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+                              // Upload reuploaded payment slip
+                              const formData = new FormData();
+                              if (paymentInfo) {
+                                formData.append('orderId', paymentInfo.orderId.toString());
+                              }
+                              if (paymentInfo) {
+                                formData.append('totalAmount', paymentInfo.totalAmount.toString());
+                              }
+                              formData.append('paymentDate', paymentDate);
+                              formData.append('file', file);
+
+                              const res = await axios.post(
+                                `http://localhost:8081/payments/upload`,
+                                formData,
+                                {
+                                  headers: {
+                                    'Content-Type': 'multipart/form-data',
+                                  },
+                                  withCredentials: true
+                                }
+                              );
+
+                              console.log('Re-upload response:', res.data);
+
+                              // Update order status to "รอตรวจสอบอีกครั้ง"
+                              if (paymentInfo) {
+                                await handleReuploadStatusUpdate(paymentInfo.orderId);
+                              }
+
+                              setShowReuploadSection(false);
+                              setReuploadedImage(null);
+
+                              // Refresh payment info
+                              if (selectedOrder) {
+                                await fetchPaymentInfo(selectedOrder.orderId);
+                              }
+
+                              alert('การอัปโหลดสลิปใหม่สำเร็จแล้ว');
+
+                            } catch (error) {
+                              console.error('Error re-uploading payment slip:', error);
+                              alert('เกิดข้อผิดพลาดในการอัปโหลดสลิปใหม่ กรุณาลองใหม่');
+                            } finally {
+                              setIsReuploading(false);
+                            }
+                          }
+                        }}
+                        disabled={!reuploadedImage || isReuploading}
+                      >
+                        {isReuploading ? 'กำลังดำเนินการ...' : 'ยืนยันการอัปโหลดใหม่'}
+                      </button>
+
+                      <button
+                        className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg transition-all duration-300 ease-in-out transform hover:scale-105 font-medium"
+                        onClick={() => {
+                          setShowReuploadSection(false);
+                          setReuploadedImage(null);
+                        }}
+                      >
+                        ยกเลิก
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

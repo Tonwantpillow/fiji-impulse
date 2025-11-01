@@ -22,6 +22,13 @@ export const ORDER_STATUS_COLORS = {
     light: 'bg-red-100',
     dark: 'bg-red-600'
   },
+  'รอตรวจสอบอีกครั้ง': {
+    bg: 'bg-orange-400',
+    text: 'text-white',
+    border: 'border-orange-400',
+    light: 'bg-orange-100',
+    dark: 'bg-orange-500'
+  },
   'ยืนยันการชำระแล้ว': {
     bg: 'bg-blue-500',
     text: 'text-white',

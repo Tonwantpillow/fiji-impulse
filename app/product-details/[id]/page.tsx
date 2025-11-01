@@ -8,34 +8,77 @@
   import React, { useEffect, useState } from "react";
   import { useSession } from "@/contexts/SessionContext";
 
+  interface ProductModelWithImage extends ProductModel {
+  modelImageData?: string; // Base64 encoded image data
+}
+
   export default function ProductDetails({
     params,
   }: {
     params: Promise<{ id: string }>;
   }) {
     const { id } = React.use(params);
-    const [productModel, setProductModel] = useState<ProductModel | null>(null);
+    const [productModel, setProductModel] = useState<ProductModelWithImage | null>(null);
     const [qnty, setQnty] = useState<number>(1);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isAddingToCart, setIsAddingToCart] = useState<boolean>(false);
     const { user, isLoading: sessionLoading, setShowLoginModal } = useSession();
 
     useEffect(() => {
-      if (id) {
-        const numericId = parseInt(id as string, 10);
-        if (!isNaN(numericId)) {
-          axios.get(`http://localhost:8081/product-model/${numericId}`)
-          .then(res => {
-            if (res.data) {
-              setProductModel(res.data);
+      const fetchProductWithImage = async () => {
+        if (id) {
+          const numericId = parseInt(id as string, 10);
+          if (!isNaN(numericId)) {
+            try {
+              // First fetch product model information
+              const modelResponse = await axios.get(`http://localhost:8081/product-model/${numericId}`);
+              const productData: ProductModel = modelResponse.data;
+
+              let modelImageData: string | undefined;
+
+              try {
+                // Fetch product model image using the same endpoint as other pages
+                const imageResponse = await axios.get(`http://localhost:8081/product-model/image/${numericId}`, {
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  responseType: 'arraybuffer' // Important for binary image data
+                });
+
+                // Convert the array buffer to base64
+                const imageData = imageResponse.data;
+                const base64String = btoa(
+                  new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
+                );
+
+                // Get content type from response headers
+                const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
+
+                // Create base64 data URL
+                modelImageData = `data:${contentType};base64,${base64String}`;
+
+              } catch (imageError) {
+                console.warn(`Warning: Could not fetch image for modelId ${numericId}:`, imageError);
+                // Continue without image - this is not a critical error
+              }
+
+              // Create product model with image data
+              const productWithImage: ProductModelWithImage = {
+                ...productData,
+                modelImageData: modelImageData
+              };
+
+              setProductModel(productWithImage);
+
+            } catch (err) {
+              console.error('Error fetching product by ID:', err);
             }
-          })
-          .catch(err => {
-            console.error('Error fetching product by ID:', err);
-          });
+          }
+          setIsLoading(false);
         }
-        setIsLoading(false);
-      }
+      };
+
+      fetchProductWithImage();
     }, [id]);
 
     // Note: Removed automatic login modal for product-details page
@@ -111,21 +154,8 @@
           withCredentials: true
         }
       );
-
-      if (result.status === 200) {
-        alert(result.data || 'เพิ่มสินค้าลงตะกร้าสำเร็จแล้ว');
-      } else {
-        alert('เกิดข้อผิดพลาดในการเพิ่มสินค้า');
-      }
-
     } catch (error: any) {
       console.error('Error adding to cart:', error);
-
-      if (error.response?.data) {
-        alert(error.response.data);
-      } else {
-        alert('เกิดข้อผิดพลาดในการเพิ่มสินค้า กรุณาลองใหม่');
-      }
     } finally {
       setIsAddingToCart(false);
     }
@@ -141,13 +171,40 @@
     return (
       <div className="mx-40 my-20 flex flex-col sm:flex-row gap-3">
         <div className="flex flex-col gap-4 items-center w-full h-full">
-          <Image
-            src={"/images/" + productModel.modelImage}
-            alt={productModel.modelName}
-            width={500}
-            height={500}
-            className=" w-[500px] h-[500px] border-2"
-          />
+          {productModel.modelImageData ? (
+            // Use base64 image data if available (from new endpoint)
+            <Image
+              src={productModel.modelImageData}
+              alt={productModel.modelName}
+              width={500}
+              height={500}
+              className="w-[500px] h-[500px] border-2 object-cover rounded-lg"
+              onError={(e) => {
+                console.error("Base64 image failed to load:", productModel.modelImageData);
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : productModel.modelImage && productModel.modelImage !== 'undefined' && productModel.modelImage.trim() !== '' ? (
+            // Fallback to legacy image path if available
+            <Image
+              src={productModel.modelImage.startsWith('http') ? productModel.modelImage : `/images/${productModel.modelImage}`}
+              alt={productModel.modelName}
+              width={500}
+              height={500}
+              className="w-[500px] h-[500px] border-2 object-cover rounded-lg"
+              onError={(e) => {
+                console.error("Image failed to load:", productModel.modelImage);
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : (
+            // Fallback placeholder if no image available
+            <div className="w-[500px] h-[500px] border-2 border-gray-300 rounded-lg flex items-center justify-center bg-gray-200">
+              <div className="text-center">
+                <span className="text-gray-500 text-lg">ไม่มีรูปภาพสินค้า</span>
+              </div>
+            </div>
+          )}
           <div className="h-[2px] bg-primary-darker w-full"></div>
           <div className="flex items-center">
             <button
